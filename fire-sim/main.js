@@ -1665,8 +1665,8 @@ function startGasLeak() {
   }
 
   gasActive = true;
-  gasIntensity = 0.15;
-  peakGasIntensity = 0.15; // Sızıntı başında sıfırla
+  gasIntensity = 0.0;
+  peakGasIntensity = 0.0; // Sızıntı başında sıfırla
   gasStage = "leaking";
 
   // Işıkları hafif karartabiliriz veya bir uyarı sesi çalabiliriz
