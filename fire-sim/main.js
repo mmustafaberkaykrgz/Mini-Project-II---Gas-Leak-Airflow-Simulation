@@ -1988,14 +1988,15 @@ function animate() {
 
   // Gaz seviyesi yükselme/azalma mantığı
   if (gasActive && gasStage !== "cleared") {
-    let gasDelta = deltaTime * 0.02; // Saniyede %2 artış
+    let gasDelta = deltaTime * 0.04; // Saniyede %4 artış (Daha hızlı fark edilmesi için artırıldı)
     if (window.isFanOn && (window.isDoorOpen || window.isWindowOpen)) {
-      gasDelta = -deltaTime * 0.05; // Havalandırma tam kapasite açıkken hızlı düşüş
+      gasDelta = -deltaTime * 0.08; // Havalandırma tam kapasitedeyken daha hızlı tahliye
     } else if ((window.isFanOn && !window.isDoorOpen && !window.isWindowOpen) || (window.isDoorOpen || window.isWindowOpen)) {
-      gasDelta = -deltaTime * 0.01; // Sadece açık fan veya kapı/pencere ile çok hafif düşüş
+      gasDelta = -deltaTime * 0.02; // Sadece fan veya kapı/pencere açıkken yavaş tahliye
     }
 
     gasIntensity += gasDelta;
+    if (gasIntensity < 0) gasIntensity = 0; // Alt sınır koruması
     if (gasIntensity > peakGasIntensity) peakGasIntensity = gasIntensity; // Zirve noktayı kaydet
 
     const elapsed = (Date.now() - startTime) / 1000;
@@ -2043,8 +2044,8 @@ function animate() {
       }
     }
 
-    // Gaz oranı kapasitesi
-    gasRate = gasActive ? gasRateValue * gasIntensity : 0;
+    // Gaz oranı kapasitesi (Görsel dumanın daha erken başlaması için min bir değer eklendi)
+    gasRate = gasActive ? (gasRateValue * gasIntensity + (gasIntensity > 0.01 ? 5 : 0)) : 0;
 
     // Dedektör Mesafesi Hesaplama (Proximity Sensor)
     const gasPosition = new THREE.Vector3(0.7, 0.25, -1.5);
@@ -2083,7 +2084,7 @@ function animate() {
     const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
     const timerDiv = document.getElementById("timer");
     if (timerDiv) {
-      timerDiv.textContent = `⏱️ elapsed time: ${elapsedTime}s`;
+      timerDiv.textContent = `⏱️ Elapsed time: ${elapsedTime}s`;
 
       if (elapsedTime < 40) {
         timerDiv.style.color = "#00ff00";
