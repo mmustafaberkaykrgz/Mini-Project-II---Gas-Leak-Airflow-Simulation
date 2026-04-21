@@ -65,7 +65,7 @@ A web-based, interactive 3D simulation designed for **Occupational Health and Sa
 The simulation automatically tracks user decisions and performance metrics. Upon completion, a summary report is generated, and results can be exported as a **CSV** file for administrative review.
 
 
-## 👥 Team: BS Studious
+## 👥 Team: BS Studios
 
 ### Student Information
 - **Mustafa Berkay Karagöz** - 220208010
