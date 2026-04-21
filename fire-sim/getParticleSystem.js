@@ -95,8 +95,8 @@ function getParticleSystem(params) {
   geometry.setAttribute('angle', new THREE.Float32BufferAttribute([], 1));
 
   const _points = new THREE.Points(geometry, _material);
-  _points.frustumCulled = false; // Yakınlaştığında kaybolmasın
-  _points.renderOrder = 999; // En üstte render edilsin
+  _points.frustumCulled = false; // Prevent disappearing when zoomed in
+  _points.renderOrder = 999; // Render on top of other objects
 
   parent.add(_points);
 
@@ -123,7 +123,7 @@ function getParticleSystem(params) {
 //   const radius = 0.03;
 //   const maxLife = 1.5;
 //   const maxSize = 0.5;
-  const windVelocity = new THREE.Vector3(0, 0, 0); // Gazı sürükleyecek rüzgar vektörü
+  const windVelocity = new THREE.Vector3(0, 0, 0); // Wind vector that will carry the gas
   let gdfsghk = 0.0;
 
   function _AddParticles(timeElapsed = 0, rateUpdated = rate) {
@@ -202,7 +202,7 @@ function getParticleSystem(params) {
       p.colour.copy(colorSpline.getValueAt(t));
 
       p.position.add(p.velocity.clone().multiplyScalar(timeElapsed));
-      p.position.add(windVelocity.clone().multiplyScalar(timeElapsed)); // Rüzgar iter
+      p.position.add(windVelocity.clone().multiplyScalar(timeElapsed)); // Pushed by wind
 
       const drag = p.velocity.clone();
       drag.multiplyScalar(timeElapsed * 0.1);

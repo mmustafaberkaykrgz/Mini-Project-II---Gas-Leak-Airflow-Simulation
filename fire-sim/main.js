@@ -22,14 +22,14 @@ import { getParticleSystem } from "./getParticleSystem.js";
 let camera, scene, renderer, composer, controls, model;
 let modelCircle, baseCircle;
 let gui, guiCam;
-let room; // Oda objesi
-let isLocked = false; // Pointer lock durumu
-let currentInteractable = null; // Şu an bakılan etkileşimli obje
-let interactionHintDiv; // E tuşu ipucu elementi
-window.isDoorOpen = false; // Kapı durumu
-window.doorGroup = null; // Kapı objesi referansı
+let room; // Room object
+let isLocked = false; // Pointer lock status
+let currentInteractable = null; // Currently looked-at interactable object
+let interactionHintDiv; // E key interaction hint element
+window.isDoorOpen = false; // Door status
+window.doorGroup = null; // Door object reference
 
-// Hava Akışı Mantığı Değişkenleri
+// Airflow Logic Variables
 window.isFanOn = false;
 window.isWindowOpen = false;
 window.fanBlades = null;
@@ -42,15 +42,12 @@ let modelSmoke, modelWood;
 const clock = new THREE.Clock();
 let deltaTime;
 
-// Ses Sistemi Değişkenleri
-let audioContext;
-let alarmAudio = null;
-
-// Göz hizası sabit yüksekliği (metre cinsinden)
+// Event listeners for keyboard input
+// Eye level fixed height (in meters)
 const EYE_HEIGHT = 1.6;
 
-// ==================== FPS HAREKET KONTROLLERİ (WASD) ====================
-// Klavye ile birinci şahıs (kişi POV) hareketi için değişkenler
+// ==================== FPS MOVEMENT CONTROLS (WASD) ====================
+// Variables for first-person POV movement via keyboard
 const moveState = {
   forward: false,
   backward: false,
@@ -58,7 +55,7 @@ const moveState = {
   right: false,
 };
 
-// Hareket hızı (metre/saniye)
+// Movement speed (meters/second)
 const moveSpeed = 2.5;
 
 function onKeyDown(event) {
@@ -84,7 +81,7 @@ function onKeyDown(event) {
   }
 }
 
-// Etkileşim işleyicisi
+// Interaction handler
 function handleInteraction(object) {
   if (object.name === "Door") {
     toggleDoor();
@@ -137,37 +134,46 @@ function toggleWindow() {
   updateAirflow();
 }
 
-// Hava akışı (rüzgar) mantığını güncelleyen metod
+/**
+ * METHOD: updateAirflow
+ * Mathematical logic behind gas dissipation and airflow direction.
+ * This function calculates the wind vector (X, Y, Z) based on the state of environmental openings.
+ */
 function updateAirflow() {
-  // Basit fizik:
-  // Fan odaya hava üflüyor (itme gücü).
-  // Eğer fan açıksa ve (kapı veya pencere açıksa) gaz temizlenebilir.
+  // PHYSICAL LOGIC:
+  // The fan acts as a "pressure source" blowing air into the room.
+  // Gas dissipation occurs if the fan is active AND at least one opening (door/window) is available.
   let windX = 0;
   let windY = 0;
   let windZ = 0;
 
   if (window.isFanOn) {
     if (window.isDoorOpen && !window.isWindowOpen) {
-      // Sadece kapı açık: Gazı kapıya (ileri +Z) iter
+      // SCENARIO 1: Only door is open. 
+      // Air pushes gas towards the front wall/door (positive Z axis).
       windZ = 2.5;
       windX = 0;
     } else if (!window.isDoorOpen && window.isWindowOpen) {
-      // Sadece pencere açık: Gazı pencereye (sola -X) iter
+      // SCENARIO 2: Only window is open. 
+      // Air pushes gas towards the left wall window (negative X axis).
       windZ = 0;
       windX = -2.5;
     } else if (window.isDoorOpen && window.isWindowOpen) {
-      // Her ikisi de açık: Gazı çapraz (diagonal) iter
+      // SCENARIO 3: Both are open. 
+      // Airflow splits diagonally to cover both exits.
       windZ = 1.8;
       windX = -1.8;
     } else {
-      // Her ikisi de kapalı: Fan açık ama çıkış yok, hafif sirkülasyon (türbülans)
+      // SCENARIO 4: Everything closed. 
+      // Fan is on but there's no major exit, creating slight internal turbulence (randomized drift).
       windZ = 0.3;
       windX = -0.1;
     }
     console.log(`Airflow Updated: windX=${windX}, windZ=${windZ}`);
   }
 
-  // Particle engine wind_velocity set
+  // PASSING DATA TO PARTICLE ENGINE:
+  // The calculated wind vector is applied directly to the gas particle system's physics.
   if (gasEffect && typeof gasEffect.windVelocity !== 'undefined') {
     gasEffect.windVelocity.set(windX, windY, windZ);
   }
@@ -228,38 +234,37 @@ function onKeyUp(event) {
   }
 }
 
-// Oda içi sınır için yardımcı fonksiyon (GÜNCELLENDİ: Kapı ve Dışarı Çıkış)
+// Helper function for room boundaries (UPDATED: Door and Outside Access)
 function clampInsideRoom(position) {
-  const roomHalfSize = 2.4; // Yan ve arka duvarlar
-  const wallZ = 2.5; // Ön duvar (Kapı duvarı)
-  const outsideLimitZ = 6.0; // Dışarıda gidilebilecek son nokta
-  const doorHalfWidth = 0.5; // Kapı genişliğinin yarısı (1m kapı)
+  const roomHalfSize = 2.4; // Side and back walls
+  const wallZ = 2.5; // Front wall (Door wall)
+  const outsideLimitZ = 6.0; // Furthest point reachable outside
+  const doorHalfWidth = 0.5; // Half of door width (1m door)
 
-  // X Sınırları (Oda genişliği - Dışarıda da aynı genişlikte koridor varsayalım)
+  // X Boundaries (Room width)
   if (position.x > roomHalfSize) position.x = roomHalfSize;
   if (position.x < -roomHalfSize) position.x = -roomHalfSize;
 
-  // Z Sınırları (Arka duvar ve Dış sınır)
+  // Z Boundaries (Back wall and Out limits)
   if (position.z < -roomHalfSize) position.z = -roomHalfSize;
   if (position.z > outsideLimitZ) position.z = outsideLimitZ;
 
-  // Ön Duvar Kontrolü (Z = 2.5 civarı)
-  // Eğer duvara yaklaşıyorsa
+  // Front Wall Collision Control (Around Z = 2.5)
   if (position.z > 2.2 && position.z < 2.8) {
     const inDoorway = Math.abs(position.x) < doorHalfWidth;
 
     if (!inDoorway) {
-      // Kapı hizasında değiliz - Duvar var
-      if (position.z < wallZ) position.z = 2.2; // İçeride kal
-      else position.z = 2.8; // Dışarıda kal
+      // Wall exists outside door area
+      if (position.z < wallZ) position.z = 2.2; // Stay inside
+      else position.z = 2.8; // Stay outside
     } else {
-      // Kapı hizasındayız
+      // At the doorway
       if (!window.isDoorOpen) {
-        // Kapı kapalı - Geçiş yok
+        // Door is closed - No passage
         if (position.z < wallZ) position.z = 2.2;
         else position.z = 2.8;
       }
-      // Kapı açıksa geçebiliriz
+      // If door is open, we can pass through
     }
   }
 }
@@ -471,7 +476,7 @@ function loadModel(modelKey) {
 
 // Tüm modelleri yükle
 async function loadAllRealisticModels() {
-  console.log("📦 Gerçekçi modeller yükleniyor...");
+  console.log("📦 Loading realistic models...");
 
   const modelKeys = Object.keys(REALISTIC_MODELS);
   const loadPromises = modelKeys.map((key) => loadModel(key));
@@ -479,7 +484,7 @@ async function loadAllRealisticModels() {
   await Promise.all(loadPromises);
 
   modelsLoaded = true;
-  console.log("✅ Model yükleme tamamlandı!");
+  console.log("✅ Model loading complete!");
 
   return loadedModels;
 }
@@ -488,19 +493,19 @@ let gasEffect;
 
 let gasActive = false;
 let gasIntensity = 0.0;
-let peakGasIntensity = 0.0; // Puanlama için en yüksek seviyeyi tutar
+let peakGasIntensity = 0.0; // Tracks highest level for scoring
 let gasStage = "none"; // 'none', 'leaking', 'cleared'
 
-// Zamanlama ve puanlama
+// Timing and scoring
 let timerStarted = false;
 let startTime = 0;
 let userScore = 0;
 let decisionLog = [];
 
-// Senaryo bitti mi?
+// Is scenario ended?
 let scenarioEnded = false;
 
-// Parçacık yoğunluğu
+// Particle density
 const gasRateValue = 40;
 let gasRate = 0;
 
@@ -582,23 +587,23 @@ async function init() {
 
   // -------------------- Particles --------------------
 
-  // Yangın efekti kaldırıldı
+  // Fire effect removed
   gasEffect = getParticleSystem({
     camera,
     emitter: gasSpawn,
     parent: scene,
     rate: gasRate,
-    texture: "./assets/img/smoke.png", // Duman dokusunu kullanıp yeşile boyayacağız
-    radius: 0.5, // Daha geniş alana yayılır
-    maxLife: 6.0, // Daha uzun süre havada asılı kalır
-    maxSize: 6.0, // Bulutlar daha büyük
+    texture: "./assets/img/smoke.png", // We will use smoke texture and color it green
+    radius: 0.5, // Spreads over a wider area
+    maxLife: 6.0, // Stays suspended in air longer
+    maxSize: 6.0, // Clouds are larger
     maxVelocity: gasVelocity,
-    colorA: new THREE.Color(0x33ff55), // Açık yeşil / zehirli gaz rengi
-    colorB: new THREE.Color(0xaaff00), // Sarımsı yeşil
+    colorA: new THREE.Color(0x33ff55), // Light green / toxic gas color
+    colorB: new THREE.Color(0xaaff00), // Yellowish green
     alphaMax: 0.7,
   });
 
-  // -------------------- Oda Oluştur --------------------
+  // -------------------- Create Room --------------------
 
   await createRoom();
 
@@ -831,7 +836,7 @@ function stopFeAnimations() {
   });
 }
 
-// ----------------- Oda Fonksiyonu ------------------------
+// ----------------- Room Functions ------------------------
 
 async function createRoom() {
   room = new THREE.Group();
@@ -840,14 +845,14 @@ async function createRoom() {
   const wallHeight = 3;
   const wallThickness = 0.1;
 
-  // Malzemeler
+  // Materials
   const wallMaterial = new THREE.MeshStandardMaterial({
     color: 0xf5f5f0,
     roughness: 0.9,
     metalness: 0.05,
   });
 
-  // Gerçekçi ahşap zemin dokusu için malzeme
+  // Materials for realistic wood floor texture
   const floorMaterial = new THREE.MeshStandardMaterial({
     color: 0x8b6914,
     roughness: 0.8,
@@ -860,7 +865,7 @@ async function createRoom() {
     metalness: 0.02,
   });
 
-  // Zemin
+  // Floor
   const floorGeometry = new THREE.BoxGeometry(
     roomSize,
     wallThickness,
@@ -871,7 +876,7 @@ async function createRoom() {
   floor.receiveShadow = true;
   room.add(floor);
 
-  // Tavan
+  // Ceiling
   const ceilingGeometry = new THREE.BoxGeometry(
     roomSize,
     wallThickness,
@@ -882,7 +887,7 @@ async function createRoom() {
   ceiling.receiveShadow = true;
   room.add(ceiling);
 
-  // Arka duvar
+  // Back wall
   const backWallGeometry = new THREE.BoxGeometry(
     roomSize,
     wallHeight,
@@ -894,7 +899,7 @@ async function createRoom() {
   backWall.castShadow = true;
   room.add(backWall);
 
-  // Sol duvar
+  // Left wall
   const leftWallGeometry = new THREE.BoxGeometry(
     wallThickness,
     wallHeight,
@@ -906,7 +911,7 @@ async function createRoom() {
   leftWall.castShadow = true;
   room.add(leftWall);
 
-  // Sağ duvar
+  // Right wall
   const rightWallGeometry = new THREE.BoxGeometry(
     wallThickness,
     wallHeight,
@@ -918,10 +923,10 @@ async function createRoom() {
   rightWall.castShadow = true;
   room.add(rightWall);
 
-  // Ön Duvar (Kapılı)
-  // Kapı boşluğu: x= -0.5 ile 0.5 arası (1m genişlik), Yükseklik 2.2m
+  // Front Wall (with Door)
+  // Door gap: between x= -0.5 and 0.5 (1m width), Height 2.2m
 
-  // Sol Parça (İçeriden bakınca sağ, x > 0.5)
+  // Left part (looking from inside, x > 0.5)
   const frontRightGeo = new THREE.BoxGeometry(2.0, wallHeight, wallThickness);
   const frontRight = new THREE.Mesh(frontRightGeo, wallMaterial);
   frontRight.position.set(1.5, wallHeight / 2, roomSize / 2); // (0.5 + 2.5)/2 = 1.5
@@ -929,7 +934,7 @@ async function createRoom() {
   frontRight.receiveShadow = true;
   room.add(frontRight);
 
-  // Sağ Parça (İçeriden bakınca sol, x < -0.5)
+  // Right part (looking from inside, x < -0.5)
   const frontLeftGeo = new THREE.BoxGeometry(2.0, wallHeight, wallThickness);
   const frontLeft = new THREE.Mesh(frontLeftGeo, wallMaterial);
   frontLeft.position.set(-1.5, wallHeight / 2, roomSize / 2);
@@ -937,7 +942,7 @@ async function createRoom() {
   frontLeft.receiveShadow = true;
   room.add(frontLeft);
 
-  // Üst Parça (Kapı üstü)
+  // Top part (Above door)
   const doorHeight = 2.2;
   const frontTopGeo = new THREE.BoxGeometry(1.0, wallHeight - doorHeight, wallThickness);
   const frontTop = new THREE.Mesh(frontTopGeo, wallMaterial);
@@ -946,34 +951,34 @@ async function createRoom() {
   frontTop.receiveShadow = true;
   room.add(frontTop);
 
-  // KAPI
+  // DOOR
   const doorWidth = 1.0;
   const doorThick = 0.05;
   const doorGeo = new THREE.BoxGeometry(doorWidth, doorHeight, doorThick);
-  const doorMat = new THREE.MeshStandardMaterial({ color: 0x442200, roughness: 0.6 }); // Ahşap kapı
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x442200, roughness: 0.6 }); // Wooden door
   const doorMesh = new THREE.Mesh(doorGeo, doorMat);
 
-  // Pivot noktası için grup (Menteşe solda olsun)
+  // Group for pivot point (Hinge on the left)
   const doorGroup = new THREE.Group();
   doorGroup.position.set(-0.5, doorHeight / 2, roomSize / 2); // Menteşe noktası
 
-  // Mesh'i gruba göre konumlandır (Grup merkezinden sağa doğru uzayacak)
+  // Position mesh according to group (Will extend right from group center)
   doorMesh.position.set(doorWidth / 2, 0, 0);
 
-  doorMesh.name = "Door"; // Raycaster için isim
+  doorMesh.name = "Door"; // Raycaster name
   doorGroup.add(doorMesh);
 
-  // Kapı kolu
+  // Door handle
   const handleGeo = new THREE.SphereGeometry(0.05);
   const handleMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.8 });
   const handle = new THREE.Mesh(handleGeo, handleMat);
-  handle.position.set(doorWidth - 0.1, 0, 0.05); // Kapının ucunda (Dış)
+  handle.position.set(doorWidth - 0.1, 0, 0.05); // Edge of door (Outside)
   handle.name = "Door";
   doorGroup.add(handle);
 
-  // İç Kapı Kolu
+  // Inside Door Handle
   const handleInside = new THREE.Mesh(handleGeo, handleMat);
-  handleInside.position.set(doorWidth - 0.1, 0, -0.05); // Kapının ucunda (İç)
+  handleInside.position.set(doorWidth - 0.1, 0, -0.05); // Edge of door (Inside)
   handleInside.name = "Door";
   doorGroup.add(handleInside);
 
@@ -981,7 +986,7 @@ async function createRoom() {
   room.add(doorGroup);
   window.doorGroup = doorGroup;
 
-  // Acil çıkış tabelası (GLB): Kapının tam üstünde, odanın içinde (duvara sabit)
+  // Exit sign box (GLB): Directly above the door, inside the room (fixed to wall)
   loader.load(
     "exit_box.glb",
     (gltf) => {
@@ -994,133 +999,128 @@ async function createRoom() {
         }
       });
 
-      // Konum: kapı boşluğunun tam üstü, ön duvarın iç yüzeyi
-      // Kapı üstüne daha yakın ve biraz daha büyük
+      // Position: directly above door gap, inner surface of front wall
+      // Closer to top of door and slightly larger
       exitSign.position.set(
         0,
         doorHeight + 0.15,
         roomSize / 2 - wallThickness / 2 - 0.01
       );
 
-      // Ölçek: biraz daha büyük
+      // Scale: slightly larger
       exitSign.scale.set(0.65, 0.65, 0.65);
 
-      // Duvara paralel olsun (90°)
+      // Parallel to wall (90 deg)
       exitSign.rotation.y = Math.PI / 2;
 
       room.add(exitSign);
     },
     undefined,
     (error) => {
-      console.warn("⚠ exit_box.glb yüklenemedi:", error);
+      console.warn("⚠ exit_box.glb could not be loaded:", error);
     }
   );
 
-  // Dış Zemin (Balkon/Koridor)
+  // Outer Floor (Balcony/Corridor)
   const outFloorGeo = new THREE.BoxGeometry(roomSize, wallThickness, 4.0);
-  const outFloorMat = new THREE.MeshStandardMaterial({ color: 0x333333 }); // Beton zemin
+  const outFloorMat = new THREE.MeshStandardMaterial({ color: 0x333333 }); // Concrete floor
   const outFloor = new THREE.Mesh(outFloorGeo, outFloorMat);
   outFloor.position.set(0, -wallThickness / 2, 4.5); // 2.5 + 2.0 = 4.5
   outFloor.receiveShadow = true;
   room.add(outFloor);
 
-  // Acil Çıkış Takip Yolu (Gelişmiş - L Şekli, Kusursuz Köşe)
+  // Emergency Exit Path (Advanced - L Shape, Seamless Corner)
   const exitPathGroup = new THREE.Group();
   room.add(exitPathGroup);
 
-  // Materyaller
-  const pathMat = new THREE.MeshBasicMaterial({ color: 0x009900, side: THREE.DoubleSide }); // Yeşil Yol
-  const borderMat = new THREE.MeshBasicMaterial({ color: 0xffcc00, side: THREE.DoubleSide }); // Sarı Şeritler
-  const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00, side: THREE.DoubleSide }); // Sarı Oklar
+  // Materials
+  const pathMat = new THREE.MeshBasicMaterial({ color: 0x009900, side: THREE.DoubleSide }); // Green Path
+  const borderMat = new THREE.MeshBasicMaterial({ color: 0xffcc00, side: THREE.DoubleSide }); // Yellow Stripes
+  const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00, side: THREE.DoubleSide }); // Yellow Arrows
 
-  const pathY = 0.02; // Zemin üstü
+  const pathY = 0.02; // Above floor
 
-  // Koordinat Limitleri:
-  // Z Başlangıç: 2.5 (Kapı)
-  // Z Dönüş Merkezi: 5.0 (Koridor Ortası)
-  // X Bitiş: -2.2 (Sola gidiş, zemin sınırı -2.5 olduğu için güvenli pay bırakıldı)
+  // Coordinates:
+  // Z Start: 2.5 (Door)
+  // Z Turn Center: 5.0 (Center of corridor)
+  // X End: -2.2 (Going left, safety margin left at -2.5 floor boundary)
 
-  // 1. DİKEY BÖLÜM (Kapıdan İleri) - YEŞİL
-  // Z: 2.5 -> 5.4 (Dönüşün dış kenarına kadar)
+  // 1. VERTICAL SECTION (Forward from door) - GREEN
+  // Z: 2.5 -> 5.4 
   const vGreenGeo = new THREE.PlaneGeometry(0.8, 2.9);
   const vGreen = new THREE.Mesh(vGreenGeo, pathMat);
   vGreen.rotation.x = -Math.PI / 2;
-  vGreen.position.set(0, pathY, 2.5 + 1.45); // Orta nokta: 3.95
+  vGreen.position.set(0, pathY, 2.5 + 1.45); // Mid point: 3.95
   exitPathGroup.add(vGreen);
 
-  // 2. YATAY BÖLÜM (Sola Dönüş) - YEŞİL
-  // X: -0.4 (Dikey parçanın iç kenarı) -> -2.2
+  // 2. HORIZONTAL SECTION (Turn Left) - GREEN
+  // X: -0.4 -> -2.2
   const hGreenGeo = new THREE.PlaneGeometry(1.8, 0.8);
   const hGreen = new THREE.Mesh(hGreenGeo, pathMat);
   hGreen.rotation.x = -Math.PI / 2;
-  hGreen.position.set(-1.3, pathY, 5.0); // Z=5.0 merkezli
+  hGreen.position.set(-1.3, pathY, 5.0); // Z=5.0 centered
   exitPathGroup.add(hGreen);
 
-  // 3. DIŞ KENAR (Sağ -> Üst Sarı Şerit)
-  // Dikey Sağ Border: Z 2.5 -> 5.45
+  // 3. OUTER BORDER (Right -> Top Yellow Stripe)
   const borderRightGeo = new THREE.PlaneGeometry(0.1, 2.95);
   const borderRight = new THREE.Mesh(borderRightGeo, borderMat);
   borderRight.rotation.x = -Math.PI / 2;
   borderRight.position.set(0.45, pathY, 2.5 + 1.475);
   exitPathGroup.add(borderRight);
 
-  // Yatay Üst Border: X 0.45 -> -2.2
   const borderTopGeo = new THREE.PlaneGeometry(2.65, 0.1);
   const borderTop = new THREE.Mesh(borderTopGeo, borderMat);
   borderTop.rotation.x = -Math.PI / 2;
   borderTop.position.set(-0.875, pathY, 5.45);
   exitPathGroup.add(borderTop);
 
-  // 4. İÇ KENAR (Sol -> Alt Sarı Şerit)
-  // Dikey Sol Border: Z 2.5 -> 4.55 (İç köşe hizası)
+  // 4. INNER BORDER (Left -> Bottom Yellow Stripe)
   const borderLeftGeo = new THREE.PlaneGeometry(0.1, 2.05);
   const borderLeft = new THREE.Mesh(borderLeftGeo, borderMat);
   borderLeft.rotation.x = -Math.PI / 2;
   borderLeft.position.set(-0.45, pathY, 2.5 + 1.025);
   exitPathGroup.add(borderLeft);
 
-  // Yatay Alt Border: X -0.45 -> -2.2
   const borderBottomGeo = new THREE.PlaneGeometry(1.75, 0.1);
   const borderBottom = new THREE.Mesh(borderBottomGeo, borderMat);
   borderBottom.rotation.x = -Math.PI / 2;
   borderBottom.position.set(-1.325, pathY, 4.55);
   exitPathGroup.add(borderBottom);
 
-  // KÖŞE KAPATMA (Sarı Kareler - Z-fighting önlemek için gerekirse)
-  // Şu anki geometri overlap ile doğal kapanıyor.
+  // COORNER CLOSING - geometry overlaps naturally.
 
-  // --- OKLAR ---
-  const arrowGeo = new THREE.CircleGeometry(0.3, 3); // Üçgen Ok
+  // --- ARROWS ---
+  const arrowGeo = new THREE.CircleGeometry(0.3, 3); // Triangle Arrow
 
-  // Ok 1: İleri
+  // Arrow 1: Forward
   const arrow1 = new THREE.Mesh(arrowGeo, arrowMat);
   arrow1.rotation.x = -Math.PI / 2;
-  arrow1.rotation.z = -Math.PI / 2; // +Z yönü
+  arrow1.rotation.z = -Math.PI / 2; // +Z direction
   arrow1.position.set(0, pathY + 0.01, 3.5);
   exitPathGroup.add(arrow1);
 
-  // Ok 2: Sola
+  // Arrow 2: Left
   const arrow2 = new THREE.Mesh(arrowGeo, arrowMat);
   arrow2.rotation.x = -Math.PI / 2;
-  arrow2.rotation.z = Math.PI; // -X yönü (Sol)
+  arrow2.rotation.z = Math.PI; // -X direction (Left)
   arrow2.position.set(-1.5, pathY + 0.01, 5.0);
   exitPathGroup.add(arrow2);
 
-  // ==================== GERÇEKÇİ MODELLER ====================
-  // Önce modelleri yüklemeyi dene, başarısız olursa fallback kullan
+  // ==================== REALISTIC MODELS ====================
+  // Try loading models first, use fallback on failure
 
   await loadAllRealisticModels();
 
-  // -------------------- OFİS MASASI --------------------
+  // -------------------- OFFICE DESK --------------------
   if (loadedModels.desk) {
     room.add(loadedModels.desk);
-    console.log("✓ Gerçekçi masa modeli eklendi");
+    console.log("✓ Realistic desk model added");
   } else {
-    // Fallback: Basit geometri masa
+    // Fallback: Simple geometry desk
     createFallbackDesk();
   }
 
-  // -------------------- ALARM BUTONU --------------------
+  // -------------------- ALARM BUTTON --------------------
   if (loadedModels.alarmButton) {
     const alarmModel = loadedModels.alarmButton;
     alarmModel.name = "alarmBox";
@@ -1130,13 +1130,13 @@ async function createRoom() {
       }
     });
     room.add(alarmModel);
-    console.log("✓ Gerçekçi alarm butonu eklendi");
+    console.log("✓ Realistic alarm button added");
   } else {
-    // Fallback: Basit alarm butonu
+    // Fallback: Simple alarm button
     createFallbackAlarmButton();
   }
 
-  // -------------------- ISITICI (HEATER) --------------------
+  // -------------------- HEATER --------------------
   let heater;
   if (loadedModels.heater) {
     heater = loadedModels.heater;
@@ -1149,26 +1149,23 @@ async function createRoom() {
       }
     });
     room.add(heater);
-    console.log("✓ Gerçekçi ısıtıcı eklendi");
+    console.log("✓ Realistic heater added");
   } else {
-    // Fallback: Basit çöp kovası (Isıtıcı yerine)
+    // Fallback: Simple trash can (instead of heater)
     heater = createFallbackTrashCan();
     heater.name = "heater";
   }
 
-  // Elektrik kablosu kaldırıldı - yangın kaynağı artık görsel olarak gösterilmiyor
-  // Yangın efekti ısıtıcı/masa üzerinden başlayacak
-
-  // -------------------- BİLGİSAYAR DONANIMI --------------------
+  // -------------------- COMPUTER EQUIPMENT --------------------
   let monitor, screen, keyboard, computerMouse;
 
   if (loadedModels.monitor) {
     monitor = loadedModels.monitor;
     monitor.name = "monitor";
     room.add(monitor);
-    console.log("✓ Gerçekçi monitör eklendi");
+    console.log("✓ Realistic monitor added");
   } else {
-    // Fallback: Basit monitör
+    // Fallback: Simple monitor
     const monitorData = createFallbackMonitor();
     monitor = monitorData.monitor;
     screen = monitorData.screen;
@@ -1178,44 +1175,42 @@ async function createRoom() {
     keyboard = loadedModels.keyboard;
     keyboard.name = "keyboard";
     room.add(keyboard);
-    console.log("✓ Gerçekçi klavye eklendi");
-  } else if (!loadedModels.monitor) {
-    // Fallback zaten oluşturuldu
+    console.log("✓ Realistic keyboard added");
   }
 
   if (loadedModels.mouse) {
     computerMouse = loadedModels.mouse;
     room.add(computerMouse);
-    console.log("✓ Gerçekçi mouse eklendi");
+    console.log("✓ Realistic mouse added");
   }
 
-  // -------------------- OFİS SANDALYESİ --------------------
+  // -------------------- OFFICE CHAIR --------------------
   if (loadedModels.chair) {
     room.add(loadedModels.chair);
-    console.log("✓ Gerçekçi ofis sandalyesi eklendi");
+    console.log("✓ Realistic office chair added");
   } else {
-    // Fallback: Basit sandalye
+    // Fallback: Simple chair
     createFallbackChair();
   }
 
-  // -------------------- MİSAFİR SANDALYELERİ --------------------
+  // -------------------- GUEST CHAIRS --------------------
   if (loadedModels.guestChair1) {
     room.add(loadedModels.guestChair1);
-    console.log("✓ Misafir sandalyesi 1 eklendi");
+    console.log("✓ Guest chair 1 added");
   }
 
   if (loadedModels.guestChair2) {
     room.add(loadedModels.guestChair2);
-    console.log("✓ Misafir sandalyesi 2 eklendi");
+    console.log("✓ Guest chair 2 added");
   }
 
-  // -------------------- BİTKİ --------------------
+  // -------------------- PLANT --------------------
   if (loadedModels.plant) {
     room.add(loadedModels.plant);
-    console.log("✓ Bitki eklendi");
+    console.log("✓ Plant added");
   }
 
-  // Bilgisayar referansını sakla (yangın yayılması için)
+  // Save reference for equipment (for fire spread logic if needed)
   window.computerEquipment = {
     monitor: monitor || loadedModels.monitor,
     screen: screen,
@@ -1223,23 +1218,23 @@ async function createRoom() {
     mouse: computerMouse || loadedModels.mouse,
   };
 
-  // Havalandırma Fanı eklendi
+  // Ventilation Fan added
   createVentilationFan();
 
-  // Pencere eklendi
+  // Window added
   createWindowMesh(roomSize, wallHeight, wallThickness);
 
-  // Sızıntı kaynağı (Isıtıcı altındaki tüp/bağlantı noktası varsayalım)
+  // Leak source (Assume tube/connection point under the heater)
   window.leakSource = heater;
 
   scene.add(room);
 }
 
-// ==================== FALLBACK FONKSİYONLARI ====================
-// Model yüklenemezse kullanılacak basit geometriler
+// ==================== FALLBACK FUNCTIONS ====================
+// Simple geometries to use if models fail to load
 
 function createFallbackDesk() {
-  // Masa üstü
+  // Desktop
   const deskGeometry = new THREE.BoxGeometry(1.5, 0.05, 0.8);
   const deskMaterial = new THREE.MeshStandardMaterial({
     color: 0x5c4033,
@@ -1252,7 +1247,7 @@ function createFallbackDesk() {
   desk.receiveShadow = true;
   room.add(desk);
 
-  // Masa Bacakları
+  // Desk Legs
   const legGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.72, 12);
   const legMaterial = new THREE.MeshStandardMaterial({
     color: 0x2a2a2a,
@@ -1274,7 +1269,7 @@ function createFallbackDesk() {
     room.add(leg);
   });
 
-  console.log("⚠ Fallback masa kullanıldı");
+  console.log("⚠ Fallback desk used");
 }
 
 // Procedural Hands (Three.js Primitives)
@@ -1339,13 +1334,13 @@ function createProceduralHands() {
 }
 
 function createFallbackAlarmButton() {
-  // GİRİŞE YAKIN - Sol duvar (x=-2.4, z=1.8)
+  // NEAR ENTRY - Left wall (x=-2.4, z=1.8)
   const alarmX = -2.4;
   const alarmY = 1.4;
   const alarmZ = 1.8;
 
-  // Alarm arka kutusu
-  const alarmBackGeometry = new THREE.BoxGeometry(0.08, 0.35, 0.35); // Döndürüldü
+  // Alarm back box
+  const alarmBackGeometry = new THREE.BoxGeometry(0.08, 0.35, 0.35); // Rotated
   const alarmBackMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.6,
@@ -1356,7 +1351,7 @@ function createFallbackAlarmButton() {
   alarmBack.castShadow = true;
   room.add(alarmBack);
 
-  // Alarm butonu (kırmızı - basılabilir)
+  // Alarm button (red - clickable)
   const alarmButtonGeometry = new THREE.CylinderGeometry(0.1, 0.11, 0.06, 32);
   const alarmButtonMaterial = new THREE.MeshStandardMaterial({
     color: 0xff0000,
@@ -1366,14 +1361,14 @@ function createFallbackAlarmButton() {
     metalness: 0.8,
   });
   const alarmButton = new THREE.Mesh(alarmButtonGeometry, alarmButtonMaterial);
-  alarmButton.position.set(alarmX + 0.07, alarmY, alarmZ); // Duvardan dışarı
-  alarmButton.rotation.z = Math.PI / 2; // Yatay - sağa baksın
+  alarmButton.position.set(alarmX + 0.07, alarmY, alarmZ); // Out from wall
+  alarmButton.rotation.z = Math.PI / 2; // Horizontal - face right
   alarmButton.name = "alarmBox";
   alarmButton.castShadow = true;
   room.add(alarmButton);
 
-  // Alarm kutu çerçevesi (kırmızı çizgi)
-  const frameGeometry = new THREE.BoxGeometry(0.02, 0.37, 0.37); // Döndürüldü
+  // Alarm box frame (red line)
+  const frameGeometry = new THREE.BoxGeometry(0.02, 0.37, 0.37); // Rotated
   const frameMaterial = new THREE.MeshStandardMaterial({
     color: 0xcc0000,
     roughness: 0.4,
@@ -1383,8 +1378,8 @@ function createFallbackAlarmButton() {
   frame.position.set(alarmX + 0.02, alarmY, alarmZ);
   room.add(frame);
 
-  // "ALARM" yazısı plakası
-  const textGeometry = new THREE.BoxGeometry(0.02, 0.06, 0.3); // Döndürüldü
+  // "ALARM" text plate
+  const textGeometry = new THREE.BoxGeometry(0.02, 0.06, 0.3); // Rotated
   const textMaterial = new THREE.MeshStandardMaterial({
     color: 0xff0000,
     emissive: 0x440000,
@@ -1394,11 +1389,11 @@ function createFallbackAlarmButton() {
   textPlate.position.set(alarmX + 0.02, alarmY + 0.22, alarmZ);
   room.add(textPlate);
 
-  console.log("⚠ Fallback alarm butonu kullanıldı");
+  console.log("⚠ Fallback alarm button used");
 }
 
 function createFallbackTrashCan() {
-  // Isıtıcı (Masa altında) - Yangın kaynağı, orijinal gri metal görünüm
+  // Heater (Under desk) - Leak source, original gray metal look
   const trashCanGeometry = new THREE.CylinderGeometry(0.16, 0.19, 0.38, 20);
   const trashCanMaterial = new THREE.MeshStandardMaterial({
     color: 0x6e6e6e,
@@ -1412,7 +1407,7 @@ function createFallbackTrashCan() {
   trashCan.name = "trashcan";
   room.add(trashCan);
 
-  // Isıtıcı kovası kenar bandı
+  // Heater bucket edge band
   const rimGeometry = new THREE.TorusGeometry(0.17, 0.015, 8, 24);
   const rimMaterial = new THREE.MeshStandardMaterial({
     color: 0x505050,
@@ -1424,7 +1419,7 @@ function createFallbackTrashCan() {
   rim.rotation.x = Math.PI / 2;
   room.add(rim);
 
-  // Gaz sızıntı kaynağı (Isıtıcı altı)
+  // Gas leak source (under the heater)
   gasSpawn.position.set(0.7, 0.25, -1.5);
   // smokeSpawn kaldırıldı
 
@@ -1570,7 +1565,7 @@ function createFallbackChair() {
   console.log("⚠ Fallback sandalye kullanıldı");
 }
 
-// Havalandırma Fanı Oluşturur (Airflow Logic)
+// Creates the Ventilation Fan (Airflow Logic)
 function createVentilationFan() {
   const fanGroup = new THREE.Group();
 
@@ -1619,7 +1614,7 @@ function createVentilationFan() {
   console.log("✓ Ventilation fan added");
 }
 
-// Pencere Oluşturur (Airflow Logic)
+// Creates the Window (Airflow Logic)
 function createWindowMesh(roomSize, wallHeight, wallThickness) {
   window.windowGroup = new THREE.Group();
 
@@ -1686,7 +1681,7 @@ function startGasLeak() {
   console.log("💨 Gas leak started!");
 }
 
-// Mesaj göster
+// Show message
 function showMessage(message, duration = 4000) {
   const messageDiv = document.getElementById("messageBox");
   if (messageDiv) {
@@ -1699,18 +1694,18 @@ function showMessage(message, duration = 4000) {
   }
 }
 
-// Oyunu bitiren metot (Zehirlenme Durumu)
+// Game Over method (Toxic Poisoning state)
 function triggerGameOver() {
   endScenario("failed_toxic_gas");
 }
 
-// Senaryo sonu
+// End of scenario
 function endScenario(result) {
   if (scenarioEnded) return;
 
   const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
 
-  // Zamanlayıcıyı ve animasyonları durdur
+  // Stop timer and animations
   scenarioEnded = true;
   timerStarted = false;
 
@@ -1724,7 +1719,7 @@ function endScenario(result) {
   const detectorContainer = document.getElementById("detectorContainer");
   if (detectorContainer) detectorContainer.style.display = "none";
 
-  // Tüm efektleri temizle
+  // Clear all effects
   gasActive = false;
   gasRate = 0;
 
@@ -1732,7 +1727,7 @@ function endScenario(result) {
     window.stopAlarmSound();
   }
 
-  // Sonuç ekranı göster
+  // Show result screen
   const resultDiv = document.getElementById("resultScreen");
   const resultTitle = document.getElementById("resultTitle");
   const resultText = document.getElementById("resultText");
@@ -1753,22 +1748,22 @@ function endScenario(result) {
     text = "You have successfully ventilated the area. Everyone is safe!";
     color = "#00ff00";
 
-    // --- 100 ÜZERİNDEN MANTIKLI PUANLAMA ---
-    // 1. Hız (40 Puan): 40 saniyeden önce bitirmek tam puan, sonrası her saniye -0.5 puan
+    // --- SCORING LOGIC OUT OF 100 ---
+    // 1. Speed (40 Points): Full points if finished before 40 seconds, then -0.5 per second.
     let timeScore = Math.max(0, 40 - (parseFloat(totalTime) / 2));
 
-    // 2. Güvenlik (40 Puan): Gaz seviyesi hiç %50'yi geçmediyse tam puan, sonrası düşer
-    // En yüksek ulaşılan yoğunluk üzerinden: (1 - peak) * 40
+    // 2. Safety (40 Points): Full points if gas level never exceeds 50%.
+    // Based on peak intensity: (1 - peak) * 40
     let safetyScore = Math.max(0, (1 - peakGasIntensity) * 40);
 
-    // 3. Prosedür (20 Puan): Fan ve Pencere açıldığı için
+    // 3. Procedure (20 Points): Points for activating Fan and Window
     let procedureScore = 0;
     if (window.isFanOn) procedureScore += 10;
     if (window.isWindowOpen) procedureScore += 10;
 
     userScore = Math.round(timeScore + safetyScore + procedureScore);
 
-    // Minimum 10 puan (başarı ödülü)
+    // Minimum 10 points (success bonus)
     if (userScore < 10) userScore = 10;
 
   } else if (result === "failed_toxic_gas") {
@@ -1807,10 +1802,10 @@ function endScenario(result) {
   console.log("=== SCENARIO END ===");
   console.log(`Result: ${result}`);
 
-  // Kontrolleri serbest bırak
+  // Release controls
   if (controls) controls.unlock();
 
-  // CSV Raporunu Otomatik İndir
+  // Automatically Download CSV Report
   setTimeout(() => {
     try {
       const finalResultText = title + " - " + text;
@@ -1819,14 +1814,14 @@ function endScenario(result) {
     } catch (e) {
       console.error("Report generation error:", e);
     }
-  }, 500); // 0.5sn bekleme (UI güncellensin)
-  console.log(`Puan: ${userScore}`);
-  console.log(`Süre: ${totalTime}s`);
+  }, 500); // 0.5s wait (allow UI to update)
+  console.log(`Score: ${userScore}`);
+  console.log(`Time: ${totalTime}s`);
 }
 
 // Ses sistemi - Web Audio API ile basit alarm sesi (Tanımlar yukarıya taşındı)
 
-// Global alarm durdurma fonksiyonu
+// Global alarm stop function
 window.stopAlarmSound = function () {
   if (alarmAudio) {
     alarmAudio.pause();
@@ -1837,7 +1832,7 @@ window.stopAlarmSound = function () {
 
 function initAudio() {
   try {
-    // DOM üzerinden audio elementini al
+    // Get audio element from DOM
     alarmAudio = document.getElementById("alarmAudio");
     if (!alarmAudio) {
       console.warn("Audio element #alarmAudio not found in DOM, creating fallback...");
@@ -1894,12 +1889,12 @@ function exportToCSV(totalTime, score, resultText) {
     csvContent += `${time};${log.action};${desc}\n`;
   });
 
-  // Dosya İndirme İşlemi
+  // Download Process
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
-  // Dosya adı: Ad_Soyad_Tarih.csv
+  // Filename: Name_Surname_Date.csv
   const dateStr = new Date().toISOString().slice(0, 10);
   link.setAttribute("href", url);
   link.setAttribute("download", `Training_Report_${user.name}_${user.surname}_${dateStr}.csv`);
@@ -1973,7 +1968,7 @@ function animate() {
   controls.update();
   controls.dampingFactor = guiObject.value4;
 
-  // WASD ile birinci şahıs hareket güncellemesi
+  // Update first-person movement via WASD and delta time
   updateFirstPersonMovement(deltaTime);
 
   updateInteraction();
@@ -1992,19 +1987,32 @@ function animate() {
     if (gasRate > 0 && gasEffect) gasEffect.update(deltaTime, gasRate);
   }
 
-  // Gaz seviyesi yükselme/azalma mantığı
+  /**
+   * GAS EVOLUTION AND DISSIPATION LOGIC (Code Walkthrough Section)
+   * This block handles the mathematical growth and reduction of gas concentration.
+   */
   if (gasActive && gasStage !== "cleared") {
-    let gasDelta = deltaTime * 0.04; // Saniyede %4 artış (Daha hızlı fark edilmesi için artırıldı)
+    // 1. BASE ACCUMULATION RATE
+    // Without ventilation, gas increases by 4% per second.
+    let gasDelta = deltaTime * 0.04; 
+
+    // 2. VENTILATION ADJUSTMENTS (The Math of Airflow)
     if (window.isFanOn && (window.isDoorOpen || window.isWindowOpen)) {
-      gasDelta = -deltaTime * 0.08; // Havalandırma tam kapasitedeyken daha hızlı tahliye
+      // FULL VENTILATION: Fan is on and there is an exit (door or window).
+      // Dissipation rate is high (-8% per second), overcoming the leak.
+      gasDelta = -deltaTime * 0.08; 
     } else if ((window.isFanOn && !window.isDoorOpen && !window.isWindowOpen) || (window.isDoorOpen || window.isWindowOpen)) {
-      gasDelta = -deltaTime * 0.02; // Sadece fan veya kapı/pencere açıkken yavaş tahliye
+      // PARTIAL VENTILATION: Only fan is on (sirkülasyon) or only an exit is open (passive draft).
+      // Dissipation is slower (-2% per second), but might still slow the accumulation.
+      gasDelta = -deltaTime * 0.02; 
     }
 
+    // 3. APPLYING CHANGES AND CLAMPING
     gasIntensity += gasDelta;
-    if (gasIntensity < 0) gasIntensity = 0; // Alt sınır koruması
-    if (gasIntensity > peakGasIntensity) peakGasIntensity = gasIntensity; // Zirve noktayı kaydet
+    if (gasIntensity < 0) gasIntensity = 0; // Prevent negative concentration
+    if (gasIntensity > peakGasIntensity) peakGasIntensity = gasIntensity; // Track highest level for scoring
 
+    // 4. SUCCESS CONDITION
     const elapsed = (Date.now() - startTime) / 1000;
     if (gasIntensity <= 0.05 && gasStage === "leaking" && elapsed > 5 && peakGasIntensity > 0.1) {
       gasIntensity = 0.0;
@@ -2012,33 +2020,35 @@ function animate() {
       showMessage("✅ Environment Cleared of Gas! Mission Accomplished.", 3000);
       setTimeout(() => endScenario("success"), 3500);
     }
+
+    // 5. FAILURE CONDITION (Toxic Overload)
     if (gasIntensity > 1.0) {
-      gasIntensity = 1.0;
+      gasIntensity = 1.0; // Cap at 100%
       if (!scenarioEnded) {
         console.log("TOXIC DEATH TRIGGERED");
         triggerGameOver();
       }
     }
 
-    // Debug log (Sadece her 60 karede bir)
+    // DEBUG LOG (Every ~2 seconds)
     if (Math.floor(Date.now() / 1000) % 2 === 0 && Math.random() < 0.01) {
       console.log("Current Gas Intensity:", gasIntensity.toFixed(3));
     }
 
-    // Gaz seviyesi UI güncellemesi
+    // 6. UI UPDATES (Conversion to Percentages)
     const gasPercent = Math.min(Math.floor(gasIntensity * 100), 100);
     const textEl = document.getElementById("gasPercentageText");
     const barEl = document.getElementById("gasLevelBar");
     if (textEl) textEl.textContent = `%${gasPercent}`;
     if (barEl) {
       barEl.style.width = `${gasPercent}%`;
-      // Renk değişimi
-      if (gasPercent < 40) barEl.style.backgroundColor = "#4caf50";
-      else if (gasPercent < 80) barEl.style.backgroundColor = "#ffaa00";
-      else barEl.style.backgroundColor = "#ff0000";
+      // Color coded UI feedback
+      if (gasPercent < 40) barEl.style.backgroundColor = "#4caf50"; // Safe (Green)
+      else if (gasPercent < 80) barEl.style.backgroundColor = "#ffaa00"; // Caution (Orange)
+      else barEl.style.backgroundColor = "#ff0000"; // Danger (Red)
     }
 
-    // Tehlike Efekti (Ekran köşeleri kırmızılaşır)
+    // 7. SCREEN TINT (Visual Danger Indicator)
     const dangerOverlay = document.getElementById("dangerOverlay");
     if (dangerOverlay) {
       if (gasIntensity >= 0.8) {
@@ -2050,10 +2060,10 @@ function animate() {
       }
     }
 
-    // Gaz oranı kapasitesi (Görsel dumanın daha erken başlaması için min bir değer eklendi)
+    // Visual gas rate (Ensures some visual smoke is always visible if gas is active)
     gasRate = gasActive ? (gasRateValue * gasIntensity + (gasIntensity > 0.01 ? 5 : 0)) : 0;
 
-    // Dedektör Mesafesi Hesaplama (Proximity Sensor)
+    // 8. PROXIMITY DETECTION (Distance to Leak Source)
     const gasPosition = new THREE.Vector3(0.7, 0.25, -1.5);
     const distanceToGas = camera.position.distanceTo(gasPosition);
 
@@ -2062,16 +2072,19 @@ function animate() {
 
     if (dIndicator && dText) {
       if (distanceToGas < 1.5) {
+        // Red State: Critical Proximity
         dIndicator.style.backgroundColor = "#ff0000";
         dIndicator.style.boxShadow = "0 0 20px #ff0000";
         dText.textContent = "DANGER! TOO CLOSE";
         dText.style.color = "#ff0000";
       } else if (distanceToGas < 3.0) {
+        // Orange State: Warning Proximity
         dIndicator.style.backgroundColor = "#ffaa00";
         dIndicator.style.boxShadow = "0 0 15px #ffaa00";
         dText.textContent = "WARNING: Near Source";
         dText.style.color = "#ffaa00";
       } else {
+        // Green State: Safe Proximity
         dIndicator.style.backgroundColor = "#4caf50";
         dIndicator.style.boxShadow = "0 0 10px #4caf50";
         dText.textContent = "Safe Distance";
@@ -2080,12 +2093,12 @@ function animate() {
     }
   }
 
-  // Fan dönüş animasyonu
+  // Fan rotation animation
   if (window.isFanOn && window.fanBlades) {
-    window.fanBlades.rotation.z += deltaTime * 15; // Hızlı döner
+    window.fanBlades.rotation.z += deltaTime * 15; // Rotate fast
   }
 
-  // Zamanlayıcıyı göster (sadece senaryo devam ederken)
+  // Display timer (only while scenario is active)
   if (timerStarted && !scenarioEnded && gasStage !== "cleared") {
     const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
     const timerDiv = document.getElementById("timer");
@@ -2102,9 +2115,9 @@ function animate() {
     }
   }
 
-  // Eller animasyonu (Sallanma efekti)
+  // Player hands animation (Sway effect)
   if (handsGroup) {
-    handsGroup.visible = true; // Her zaman görünür olsun
+    handsGroup.visible = true; // Always visible
     if (moveState.forward || moveState.backward || moveState.left || moveState.right) {
       const time = Date.now() * 0.005;
       handsGroup.position.y = Math.sin(time) * 0.01;
@@ -2198,9 +2211,9 @@ function sleep(ms) {
 }
 
 async function runRoomTour() {
-  console.log("🎬 Otomatik oda turu başlıyor...");
+  console.log("🎬 Automatic room tour starting...");
 
-  // Kontrolleri kapalı tut
+  // Keep controls unlocked during tour
   if (controls) controls.unlock();
 
   const initialPos = new THREE.Vector3(0, 1.6, 2.0); // Başlangıç
@@ -2243,9 +2256,9 @@ async function runRoomTour() {
     await sleep(target.wait); // Bekle
   }
 
-  // Başa dön
+  // Return to start
   hideTourMessage();
-  showTourMessage("✅ Simülasyon Başlıyor! Hazır olun...", 2000);
+  showTourMessage("✅ Simulation Starting! Be ready...", 2000);
 
   // Başlangıç pozisyonuna dön
   await tweenCameraLookAt(initialPos, new THREE.Vector3(0, 1.6, -2.0), 1500);
@@ -2253,12 +2266,12 @@ async function runRoomTour() {
   await sleep(1000);
   hideTourMessage();
 
-  // Başla butonunu göster
+  // Show start button
   const startBtn = document.getElementById("startScenarioBtn");
   if (startBtn) {
     startBtn.style.display = "block";
 
-    // Butonu vurgula
+    // Highlight the button
     startBtn.style.transform = "translate(-50%, -50%) scale(1.1)";
     startBtn.style.transition = "transform 0.5s";
     setTimeout(() => {
@@ -2267,21 +2280,21 @@ async function runRoomTour() {
   }
 }
 
-// Senaryo başlatıcı
+// Scenario Initiator
 function startScenario() {
-  // Başlat butonunu hemen gizle
+  // Hide start button immediately
   const startBtn = document.getElementById("startScenarioBtn");
   if (startBtn) {
     startBtn.style.display = "none";
   }
 
-  // Senaryo talimat penceresini otomatik kapat
+  // Automatically collapse instructions window
   const instructionsDiv = document.getElementById("instructions");
   if (instructionsDiv && !instructionsDiv.classList.contains("collapsed")) {
     instructionsDiv.classList.add("collapsed");
   }
 
-  // Gaz durumu penceresinde uyarı göster
+  // Show warning in gas status window
   const statusDiv = document.getElementById("gasStatus");
   if (statusDiv) {
     statusDiv.textContent = "🚪 Entering the office...";
@@ -2300,7 +2313,7 @@ function startScenario() {
 
     startGasLeak();
 
-    // Zamanlayıcıyı ve yeni arayüzleri göster
+    // Show timer and new interfaces
     const timerDiv = document.getElementById("timer");
     if (timerDiv) timerDiv.style.display = "block";
 
@@ -2310,7 +2323,7 @@ function startScenario() {
     const detectorContainer = document.getElementById("detectorContainer");
     if (detectorContainer) detectorContainer.style.display = "block";
 
-    // İmleci kilitle ve nişangahı göster
+    // Lock cursor and show crosshair
     if (controls && !controls.isLocked) {
       controls.lock();
     }
@@ -2322,20 +2335,20 @@ function startScenario() {
   }, 2000);
 }
 
-// Global fonksiyonları export et
+// Export global functions
 window.gasSimulation = {
   startScenario: startScenario,
   startGasLeak: startGasLeak,
   runRoomTour: runRoomTour,
 };
 
-// Sayfa yüklendiğinde Kontrol Bilgilendirme Ekranını göster
+// Show Control Intro Screen on page load
 window.addEventListener("load", () => {
   setTimeout(() => {
-    // Kontrolleri serbest bırak (Mouse görünsün)
+    // Release controls (Make mouse visible)
     if (controls) controls.unlock();
 
-    // Önce Kullanım Kılavuzu Ekranını Göster
+    // Show User Guide Screen first
     const controlsIntro = document.getElementById("controls-intro");
     if (controlsIntro) {
       controlsIntro.style.display = "block";
@@ -2343,7 +2356,7 @@ window.addEventListener("load", () => {
   }, 1000);
 });
 
-// Etkileşim kontrolü (her karede çalışır)
+// Interaction check (runs every frame)
 function updateInteraction() {
   if (!controls.isLocked) {
     if (interactionHintDiv) interactionHintDiv.style.display = 'none';
@@ -2351,20 +2364,20 @@ function updateInteraction() {
   }
 
   const raycaster = new THREE.Raycaster();
-  // Ekranın tam ortasından ray at
+  // Raycast from exact center of the screen
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
   let foundInteractable = null;
   let hintText = "";
 
-  // 1. Sahne objelerini kontrol et
+  // 1. Check scene objects
   if (room) {
     const intersects = raycaster.intersectObjects(room.children, true);
     if (intersects.length > 0) {
       const object = intersects[0].object;
 
-      // Mesafe kontrolü
-      if (intersects[0].distance < 3.0) { // 3 metre etkileşim mesafesi
+      // Distance check
+      if (intersects[0].distance < 3.0) { // 3 meters interaction distance
         if (object.name === "Door") {
           foundInteractable = object;
           const actionText = window.isDoorOpen ? "CLOSE" : "OPEN";
@@ -2383,15 +2396,15 @@ function updateInteraction() {
     }
   }
 
-  // Durumu güncelle
+  // Update status
   currentInteractable = foundInteractable;
 
-  // UI Güncelleme
-  // Hint div'i henüz oluşturulmadıysa oluştur
+  // UI Update
+  // Create hint div if not already created
   if (!interactionHintDiv) {
     interactionHintDiv = document.createElement('div');
     interactionHintDiv.style.position = 'fixed';
-    interactionHintDiv.style.top = '55%'; // Ortadan biraz aşağıda
+    interactionHintDiv.style.top = '55%'; // Slightly below center
     interactionHintDiv.style.left = '50%';
     interactionHintDiv.style.transform = 'translate(-50%, -50%)';
     interactionHintDiv.style.color = '#ffffff';
