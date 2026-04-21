@@ -1998,7 +1998,8 @@ function animate() {
     gasIntensity += gasDelta;
     if (gasIntensity > peakGasIntensity) peakGasIntensity = gasIntensity; // Zirve noktayı kaydet
 
-    if (gasIntensity <= 0.05 && gasStage === "leaking") {
+    const elapsed = (Date.now() - startTime) / 1000;
+    if (gasIntensity <= 0.05 && gasStage === "leaking" && elapsed > 5 && peakGasIntensity > 0.1) {
       gasIntensity = 0.0;
       gasStage = "cleared";
       showMessage("✅ Environment Cleared of Gas! Mission Accomplished.", 3000);
