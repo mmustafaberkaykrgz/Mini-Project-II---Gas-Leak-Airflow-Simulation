@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Yangın Söndürme Eğitimi</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            overflow-x: hidden;
+        }
+
+        #intro-screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: #ff6b6b;
+            text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+        }
+
+        .scenario-box {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 2px solid #ff6b6b;
+            border-radius: 15px;
+            padding: 25px;
+            max-width: 500px;
+            margin: 20px 0;
+        }
+
+        .scenario-box h3 {
+            color: #ffaa00;
+            margin-bottom: 15px;
+        }
+
+        .scenario-box p {
+            line-height: 1.8;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .scenario-box ul {
+            text-align: left;
+            margin: 15px 0;
+            padding-left: 20px;
+        }
+
+        .scenario-box li {
+            margin: 8px 0;
+        }
+
+        .start-ar-btn {
+            background: linear-gradient(145deg, #ff6b6b, #ee5a6f);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 20px 50px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 30px;
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.4);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        .start-ar-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(255, 107, 107, 0.6);
+        }
+
+        .start-ar-btn:active {
+            transform: translateY(0);
+        }
+
+        #ar-container {
+            display: none;
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        model-viewer {
+            width: 100%;
+            height: 100%;
+        }
+
+        #ar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #instructions-ar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 2px solid #ff6b6b;
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #instructions-ar h3 {
+            color: #ff6b6b;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        #instructions-ar p {
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 5px 0;
+        }
+
+        #timer-ar {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 2px solid #00ff00;
+            font-size: 16px;
+            font-weight: bold;
+            color: #00ff00;
+            display: none;
+        }
+
+        #status-ar {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px 30px;
+            border-radius: 12px;
+            border: 2px solid #ffaa00;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffaa00;
+            text-align: center;
+            max-width: 90%;
+        }
+
+        .action-buttons {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            pointer-events: auto;
+        }
+
+        .action-btn {
+            background: linear-gradient(145deg, #4CAF50, #45a049);
+            color: white;
+            border: 3px solid white;
+            border-radius: 12px;
+            padding: 15px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        .action-btn.alarm {
+            background: linear-gradient(145deg, #ff0000, #cc0000);
+        }
+
+        .action-btn.abc {
+            background: linear-gradient(145deg, #ff4444, #cc0000);
+        }
+
+        .action-btn.co2 {
+            background: linear-gradient(145deg, #333, #111);
+        }
+
+        .action-btn.water {
+            background: linear-gradient(145deg, #2196F3, #1976D2);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #message-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 30px 40px;
+            border-radius: 15px;
+            border: 3px solid #ffaa00;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            max-width: 80%;
+            z-index: 200;
+            display: none;
+            box-shadow: 0 0 30px rgba(255, 170, 0, 0.8);
+        }
+
+        .device-warning {
+            background: rgba(255, 87, 51, 0.2);
+            border: 2px solid #ff5733;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .device-warning h4 {
+            color: #ff5733;
+            margin-bottom: 10px;
+        }
+
+        /* Mobil uyum */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 22px;
+            }
+
+            .scenario-box {
+                padding: 20px;
+                font-size: 13px;
+            }
+
+            .start-ar-btn {
+                padding: 15px 35px;
+                font-size: 18px;
+            }
+
+            .action-btn {
+                padding: 12px 20px;
+                font-size: 14px;
+            }
+        }
+
+        /* Loading animation */
+        .loader {
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 5px solid #ff6b6b;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Giriş Ekranı -->
+    <div id="intro-screen">
+        <h1>🔥 3D Yangın Söndürme Eğitimi</h1>
+
+        <div class="scenario-box">
+            <h3>📋 Senaryo</h3>
+            <p style="font-style: italic; color: #ffaa00;">
+                Ofiste elektrikli ısıtıcının kablosu temas etti ve <strong>elektrik yangını</strong> başladı!
+            </p>
+
+            <h4 style="color: #66ff66; margin-top: 20px;">🎯 Göreviniz:</h4>
+            <ul>
+                <li>🚨 Hızlıca alarm butonuna basın</li>
+                <li>🧯 Doğru yangın söndürücüyü seçin:
+                    <ul style="margin-top: 5px;">
+                        <li><strong style="color: #ff0000;">ABC Toz</strong> ✓</li>
+                        <li><strong style="color: #888;">CO2</strong> ✓</li>
+                        <li><strong style="color: #4af;">SU</strong> ✗ (TEHLİKELİ!)</li>
+                    </ul>
+                </li>
+                <li>⏰ 20 saniye içinde müdahale edin!</li>
+            </ul>
+        </div>
+
+        <div class="device-warning">
+            <h4>📱 Cihaz Gereksinimleri:</h4>
+            <p>✓ iOS 12+ (Safari) veya Android 8+ (Chrome)</p>
+            <p>✓ Kamera izni gereklidir</p>
+            <p>✓ HTTPS bağlantısı (güvenli bağlantı)</p>
+        </div>
+
+        <button class="start-ar-btn" onclick="checkARSupport()">
+            📷 AR Deneyimini Başlat
+        </button>
+
+        <p style="margin-top: 20px; font-size: 12px; color: #aaa;">
+            WebXR desteği gerekir. Modern mobil cihazlarda çalışır.
+        </p>
+    </div>
+
+    <!-- AR Container -->
+    <div id="ar-container">
+        <!-- AR Overlay - UI Elementleri -->
+        <div id="ar-overlay">
+            <!-- Talimatlar -->
+            <div id="instructions-ar">
+                <h3>📱 AR Talimatları</h3>
+                <p id="instruction-text">Kamerayı zeminine/masaya doğru tutun ve dokunarak yangını yerleştirin</p>
+            </div>
+
+            <!-- Zamanlayıcı -->
+            <div id="timer-ar">⏱️ 0.0s</div>
+
+            <!-- Durum Mesajı -->
+            <div id="status-ar">AR deneyimi yükleniyor...</div>
+
+            <!-- Aksiyon Butonları -->
+            <div class="action-buttons">
+                <button class="action-btn alarm" onclick="activateAlarmAR()" id="alarmBtnAR">
+                    🚨 ALARM BAS
+                </button>
+                <button class="action-btn abc" onclick="selectExtinguisherAR('ABC')" style="display:none;" id="abcBtn">
+                    ABC Toz
+                </button>
+                <button class="action-btn co2" onclick="selectExtinguisherAR('CO2')" style="display:none;" id="co2Btn">
+                    CO2
+                </button>
+                <button class="action-btn water" onclick="selectExtinguisherAR('WATER')" style="display:none;"
+                    id="waterBtn">
+                    SU (Dolap)
+                </button>
+            </div>
+        </div>
+
+        <!-- Message Popup -->
+        <div id="message-popup"></div>
+    </div>
+
+    <script>
+        // AR Değişkenleri
+        let arActive = false;
+        let fireStarted = false;
+        let alarmActivated = false;
+        let selectedExtinguisher = null;
+        let startTime = 0;
+        let fireIntensity = 1.0;
+        let fireStage = 'none';
+        let timerInterval = null;
+        let userScore = 0;
+        let decisionLog = [];
+
+        // AR Destek Kontrolü
+        function checkARSupport() {
+            if ('xr' in navigator) {
+                navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                    if (supported) {
+                        startARExperience();
+                    } else {
+                        showFallbackOption();
+                    }
+                }).catch(() => {
+                    showFallbackOption();
+                });
+            } else {
+                showFallbackOption();
+            }
+        }
+
+        // Fallback - Model Viewer kullan
+        function showFallbackOption() {
+            alert('⚠️ WebXR AR desteği bulunamadı!\n\nAlternatif: Tarayıcı tabanlı simülasyon başlatılıyor...\n\n(Gerçek AR için: iOS Safari veya Android Chrome kullanın)');
+
+            // Basit viewer moduna geç
+            startSimpleARMode();
+        }
+
+        // Basit AR Modu (Model Viewer ile)
+        function startSimpleARMode() {
+            document.getElementById('intro-screen').style.display = 'none';
+            document.getElementById('ar-container').style.display = 'block';
+
+            // AR Container'a içerik ekle
+            const container = document.getElementById('ar-container');
+            container.innerHTML = `
+                <model-viewer 
+                    id="fire-model"
+                    src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
+                    ar
+                    ar-modes="webxr scene-viewer quick-look"
+                    camera-controls
+                    environment-image="neutral"
+                    shadow-intensity="1"
+                    alt="Yangın Simülasyonu"
+                    style="width: 100%; height: 100vh;"
+                    ar-scale="fixed">
+                    <div class="progress-bar" slot="progress-bar"></div>
+                    <button slot="ar-button" style="
+                        background: linear-gradient(145deg, #ff0000, #cc0000);
+                        color: white;
+                        border: none;
+                        border-radius: 12px;
+                        padding: 15px 30px;
+                        font-size: 18px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        position: absolute;
+                        bottom: 20px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                    ">
+                        📱 AR Modunda Görüntüle
+                    </button>
+                </model-viewer>
+                ${document.getElementById('ar-overlay').outerHTML}
+            `;
+
+            // Senaryo başlat
+            setTimeout(() => {
+                startFireScenario();
+            }, 2000);
+        }
+
+        // Gerçek AR Deneyimi (WebXR)
+        async function startARExperience() {
+            try {
+                // Basit mod için fallback
+                startSimpleARMode();
+            } catch (error) {
+                console.error('AR başlatma hatası:', error);
+                showFallbackOption();
+            }
+        }
+
+        // Yangın Senaryosu Başlat
+        function startFireScenario() {
+            showMessage('🚪 Ofise giriyorsunuz... Kıvılcımlar görünüyor!');
+
+            setTimeout(() => {
+                showMessage('⚡ YANGIN BAŞLADI! Elektrik kesintisi!');
+                fireStarted = true;
+                startTime = Date.now();
+                fireStage = 'beginning';
+
+                document.getElementById('timer-ar').style.display = 'block';
+                document.getElementById('status-ar').textContent = '🔥 YANGIN VAR! Alarm basın!';
+                document.getElementById('instruction-text').textContent = 'HEMEN alarm butonuna basın! Süre işliyor...';
+
+                startTimer();
+
+                decisionLog.push({
+                    time: 0,
+                    action: 'fire_started',
+                    description: 'Elektrik yangını başladı!'
+                });
+            }, 3000);
+        }
+
+        // Zamanlayıcı
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                const timerEl = document.getElementById('timer-ar');
+                timerEl.textContent = `⏱️ ${elapsed}s`;
+
+                // Renk değişimi
+                if (elapsed < 20) {
+                    timerEl.style.borderColor = '#00ff00';
+                    timerEl.style.color = '#00ff00';
+                } else if (elapsed < 40) {
+                    timerEl.style.borderColor = '#ffaa00';
+                    timerEl.style.color = '#ffaa00';
+
+                    if (fireStage === 'beginning') {
+                        fireStage = 'developed';
+                        showMessage('🔥 DİKKAT! Yangın büyüdü! Artık müdahale riskli!');
+                    }
+                } else {
+                    timerEl.style.borderColor = '#ff0000';
+                    timerEl.style.color = '#ff0000';
+                }
+
+                // 40 saniye doldu - oyun bitti
+                if (elapsed > 40 && fireStage !== 'extinguished') {
+                    endScenarioAR('failed_uncontrolled_fire');
+                }
+            }, 100);
+        }
+
+        // Alarm Aktifleştir
+        function activateAlarmAR() {
+            if (!fireStarted) {
+                showMessage('⚠️ Henüz yangın yok!');
+                return;
+            }
+
+            if (alarmActivated) return;
+
+            const responseTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            alarmActivated = true;
+
+            decisionLog.push({
+                time: responseTime,
+                action: 'alarm_activated',
+                description: `Alarm ${responseTime}s'de basıldı`
+            });
+
+            // Puan ver
+            if (responseTime < 5) {
+                userScore += 30;
+                showMessage('⭐ Mükemmel! Alarm hızla basıldı! +30 puan');
+            } else if (responseTime < 10) {
+                userScore += 20;
+                showMessage('✓ İyi! Alarm basıldı. +20 puan');
+            } else {
+                userScore += 10;
+                showMessage('⚠️ Geç kaldınız! +10 puan');
+            }
+
+            // Buton güncelle
+            document.getElementById('alarmBtnAR').textContent = 'ALARM AKTİF! 🚨';
+            document.getElementById('alarmBtnAR').disabled = true;
+            document.getElementById('alarmBtnAR').style.opacity = '0.5';
+
+            // Söndürücü butonlarını göster
+            document.getElementById('abcBtn').style.display = 'block';
+            document.getElementById('co2Btn').style.display = 'block';
+            document.getElementById('waterBtn').style.display = 'block';
+
+            document.getElementById('status-ar').textContent = '🧯 Yangın söndürücü seçin!';
+            document.getElementById('instruction-text').textContent = 'Doğru yangın söndürücüyü seçin! (ABC veya CO2)';
+        }
+
+        // Söndürücü Seç
+        function selectExtinguisherAR(type) {
+            if (!alarmActivated) {
+                showMessage('⚠️ Önce alarm butonuna basın!');
+                return;
+            }
+
+            if (selectedExtinguisher) {
+                showMessage('Zaten bir söndürücü seçtiniz!');
+                return;
+            }
+
+            selectedExtinguisher = type;
+            const responseTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            decisionLog.push({
+                time: responseTime,
+                action: 'extinguisher_selected',
+                type: type,
+                description: `${type} tipi seçildi`
+            });
+
+            if (type === 'ABC') {
+                userScore += 40;
+                showMessage('✅ Mükemmel! ABC Toz elektrik için doğru! +40 puan');
+                setTimeout(() => extinguishFireAR(), 2000);
+            } else if (type === 'CO2') {
+                userScore += 35;
+                showMessage('✅ Doğru! CO2 uygun! Dikkat: Oksijen azalır! +35 puan');
+                setTimeout(() => extinguishFireAR(), 2000);
+            } else if (type === 'WATER') {
+                userScore -= 50;
+                showMessage('❌ YANLIŞ! Su ile elektrik yangını söndürülmez!\nELEKTRİK ÇARPMA RİSKİ!\n-50 puan');
+                setTimeout(() => endScenarioAR('failed_wrong_extinguisher'), 3000);
+            }
+        }
+
+        // Yangını Söndür
+        function extinguishFireAR() {
+            if (fireStage === 'developed') {
+                showMessage('⚠️ Çok geç! Yangın büyüdü! Risk alıyorsunuz!');
+                userScore -= 30;
+                setTimeout(() => endScenarioAR('failed_late_intervention'), 3000);
+                return;
+            }
+
+            showMessage('🧯 Yangın söndürülüyor...');
+            document.getElementById('status-ar').textContent = '🟢 Yangın kontrol altına alınıyor...';
+
+            setTimeout(() => {
+                fireStage = 'extinguished';
+                const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+                if (totalTime < 30) {
+                    userScore += 50;
+                } else if (totalTime < 60) {
+                    userScore += 30;
+                } else {
+                    userScore += 10;
+                }
+
+                decisionLog.push({
+                    time: totalTime,
+                    action: 'fire_extinguished',
+                    description: `Yangın ${totalTime}s'de söndürüldü`
+                });
+
+                showMessage('✅ Yangın söndürüldü!');
+                setTimeout(() => endScenarioAR('success'), 2000);
+            }, 3000);
+        }
+
+        // Senaryo Sonu
+        function endScenarioAR(result) {
+            clearInterval(timerInterval);
+
+            const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            let title = '';
+            let text = '';
+
+            switch (result) {
+                case 'success':
+                    title = '🎉 BAŞARILI!';
+                    text = `Yangın kontrol altına alındı!\n\nPuan: ${userScore}/200\nSüre: ${totalTime}s`;
+                    userScore += 50;
+                    break;
+                case 'failed_wrong_extinguisher':
+                    title = '❌ BAŞARISIZ';
+                    text = `Yanlış ekipman seçimi!\n\nPuan: ${userScore}/200\nSüre: ${totalTime}s`;
+                    break;
+                case 'failed_late_intervention':
+                    title = '❌ BAŞARISIZ';
+                    text = `Geç müdahale!\n\nPuan: ${userScore}/200\nSüre: ${totalTime}s`;
+                    break;
+                case 'failed_uncontrolled_fire':
+                    title = '❌ BAŞARISIZ';
+                    text = `Yangın kontrolden çıktı!\n\nPuan: ${userScore}/200\nSüre: ${totalTime}s`;
+                    break;
+            }
+
+            showMessage(title + '\n\n' + text + '\n\n' + getDecisionLog(), true);
+        }
+
+        // Karar geçmişi
+        function getDecisionLog() {
+            let log = '📋 Karar Geçmişi:\n\n';
+            decisionLog.forEach(item => {
+                log += `[${item.time}s] ${item.description}\n`;
+            });
+            return log;
+        }
+
+        // Mesaj Göster
+        function showMessage(message, permanent = false) {
+            const popup = document.getElementById('message-popup');
+            popup.textContent = message;
+            popup.style.display = 'block';
+            popup.style.whiteSpace = 'pre-line';
+
+            if (!permanent) {
+                setTimeout(() => {
+                    popup.style.display = 'none';
+                }, 4000);
+            }
+        }
+    </script>
+</body>
+
+</html>

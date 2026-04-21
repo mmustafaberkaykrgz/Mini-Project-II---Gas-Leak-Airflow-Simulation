@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>3D Gas Leak and Ventilation Simulator</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+  <link type="text/css" rel="stylesheet" href="/styles/style.css" />
+</head>
+
+<body>
+  <div id="ui-container">
+    <!-- Danger Effect Screen (Danger State) -->
+    <div id="dangerOverlay" style="
+          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          pointer-events: none; z-index: 10;
+          box-shadow: inset 0 0 0px rgba(255,0,0,0);
+          transition: box-shadow 0.5s;
+    "></div>
+
+    <!-- Alarm Audio Element -->
+    <audio id="alarmAudio" src="assets/audio/alarm.mp3" loop preload="auto"></audio>
+
+    <!-- Crosshair -->
+    <div id="crosshair" style="
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          width: 10px;
+          height: 10px;
+          background-color: rgba(255, 255, 255, 0.8);
+          border: 1px solid black;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          pointer-events: none;
+          z-index: 999;
+          box-shadow: 0 0 4px rgba(0,0,0,0.5);
+          display: none;
+        "></div>
+    <div id="title">
+      <h1>⚠️ Gas Leak and Ventilation Simulator - 3D</h1>
+    </div>
+
+    <!-- Scenario Box (Expanded by default) -->
+    <div id="instructions">
+      <h3 id="instructionsToggle" style="cursor: pointer; user-select: none; margin-bottom: 0">
+        📋 Scenario:
+        <span id="toggleIcon" style="float: right; font-size: 14px">▼</span>
+      </h3>
+      <div id="instructionsContent">
+        <p style="font-style: italic; color: #ffaa00">
+          A toxic gas leak has started from a cylinder in the laboratory!
+        </p>
+        <h4>What Will You Do?</h4>
+        <p><strong>1.</strong> 💨 Find and click on the ventilation systems (fans, windows) to activate them ([E] or Left Click).</p>
+        <p><strong>2.</strong> 🌡️ Monitor the Ambient Gas Level bar and try to reduce it below 10%.</p>
+        <p><strong>3.</strong> 📡 Check your detector color and be careful not to get too close to the leak source!</p>
+        <p><strong>WARNING:</strong> Risk increases if gas level is too high or if you are too close to the source!</p>
+      </div>
+    </div>
+
+    <!-- Gas Concentration Bar -->
+    <div id="gasLevelContainer" style="
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          width: 300px;
+          background: rgba(0, 0, 0, 0.8);
+          border: 2px solid #555;
+          border-radius: 8px;
+          padding: 10px;
+          color: white;
+          z-index: 100;
+          display: none;
+        ">
+      <div style="margin-bottom: 5px; font-weight: bold; font-size: 16px;">Ambient Gas Level: <span id="gasPercentageText">%0</span></div>
+      <div style="width: 100%; height: 20px; background: #333; border-radius: 4px; overflow: hidden;">
+        <div id="gasLevelBar" style="width: 0%; height: 100%; background: #4caf50; transition: width 0.3s, background-color 0.3s;"></div>
+      </div>
+    </div>
+
+    <!-- Gas Detector -->
+    <div id="detectorContainer" style="
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          background: rgba(0, 0, 0, 0.8);
+          border: 2px solid #555;
+          border-radius: 8px;
+          padding: 15px;
+          color: white;
+          z-index: 100;
+          display: none;
+          text-align: center;
+          width: 150px;
+        ">
+      <div style="margin-bottom: 10px; font-weight: bold; font-size: 14px;">📡 Distance Detector</div>
+      <div id="detectorIndicator" style="
+          width: 40px;
+          height: 40px;
+          background: #4caf50;
+          border-radius: 50%;
+          margin: 0 auto;
+          box-shadow: 0 0 15px #4caf50;
+          transition: background-color 0.3s, box-shadow 0.3s;
+      "></div>
+      <div id="detectorText" style="margin-top: 10px; font-weight: bold; font-size: 14px; color: #4caf50;">Safe</div>
+    </div>
+
+    <div id="timer" style="
+          position: fixed;
+          top: 70px;
+          right: 20px;
+          background: rgba(0, 0, 0, 0.9);
+          color: #00ff00;
+          padding: 10px 20px;
+          border-radius: 8px;
+          border: 2px solid #00ff00;
+          font-size: 16px;
+          font-weight: bold;
+          pointer-events: none;
+          display: none;
+          z-index: 100;
+        ">
+      ⏱️ Elapsed Time: 0.0s
+    </div>
+
+    <!-- Controls Intro Screen -->
+    <div id="controls-intro" style="
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: rgba(26, 26, 46, 0.95);
+          border: 4px solid #4caf50;
+          border-radius: 20px;
+          padding: 40px;
+          color: white;
+          z-index: 200;
+          display: none;
+          text-align: center;
+          max-width: 600px;
+          width: 90%;
+          box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        ">
+      <h2 style="color: #4caf50; font-size: 32px; margin-bottom: 30px; text-transform: uppercase;">🎮 Simulation Controls</h2>
+
+      <div style="display: flex; justify-content: space-around; margin-bottom: 40px; flex-wrap: wrap; gap: 20px;">
+        <!-- WASD -->
+        <div style="text-align: center;">
+          <div style="font-size: 40px; margin-bottom: 10px;">⌨️</div>
+          <div style="font-weight: bold; color: #ffaa00; font-size: 24px;">W A S D</div>
+          <div style="color: #aaa;">Move</div>
+        </div>
+
+        <!-- MOUSE -->
+        <div style="text-align: center;">
+          <div style="font-size: 40px; margin-bottom: 10px;">🖱️</div>
+          <div style="font-weight: bold; color: #ffaa00; font-size: 24px;">MOUSE</div>
+          <div style="color: #aaa;">Look Around</div>
+        </div>
+
+        <!-- E KEY -->
+        <div style="text-align: center;">
+          <div style="font-size: 40px; margin-bottom: 10px;">👉</div>
+          <div style="font-weight: bold; color: #ffaa00; font-size: 24px;">[ E ] KEY</div>
+          <div style="color: #aaa;">Interact / Select</div>
+        </div>
+      </div>
+
+      <div
+        style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 30px; font-style: italic;">
+        <p>💡 Tip: Hints will appear when you hover over objects.</p>
+      </div>
+
+      <div style="margin-bottom: 30px; display: flex; gap: 15px; justify-content: center;">
+        <input type="text" id="userName" placeholder="First Name" style="
+          padding: 15px;
+          border-radius: 10px;
+          border: 2px solid #4caf50;
+          background: rgba(255, 255, 255, 0.9);
+          color: #333;
+          font-size: 16px;
+          width: 45%;
+        ">
+        <input type="text" id="userSurname" placeholder="Last Name" style="
+          padding: 15px;
+          border-radius: 10px;
+          border: 2px solid #4caf50;
+          background: rgba(255, 255, 255, 0.9);
+          color: #333;
+          font-size: 16px;
+          width: 45%;
+        ">
+      </div>
+
+      <button onclick="validateAndStart()" style="
+            background: linear-gradient(145deg, #4caf50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+          " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        ✅ I Understand
+      </button>
+    </div>
+
+    <!-- Start Scenario Button -->
+    <div id="startScenarioBtn" style="
+          position: fixed;
+          top: 45%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          pointer-events: auto;
+          display: none;
+          z-index: 150;
+        ">
+      <button onclick="window.gasSimulation.startScenario()" style="
+            background: linear-gradient(145deg, #4caf50, #45a049);
+            color: white;
+            border: 4px solid #ffffff;
+            border-radius: 15px;
+            padding: 25px 45px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 8px 20px rgba(76, 175, 80, 0.6);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+          " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        ▶️ Start Scenario
+      </button>
+    </div>
+
+    </div>
+
+    <div id="messageBox" style="
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: rgba(0, 0, 0, 0.95);
+          color: white;
+          padding: 20px 40px;
+          border-radius: 15px;
+          border: 3px solid #ffaa00;
+          font-size: 18px;
+          font-weight: bold;
+          text-align: center;
+          max-width: 500px;
+          z-index: 200;
+          display: none;
+          pointer-events: none;
+          box-shadow: 0 0 30px rgba(255, 170, 0, 0.8);
+        "></div>
+
+    <div id="gasStatus" style="font-weight: bold; margin-top: 10px; color: #fff; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px;">Gas Status: Standby</div>
+
+    <div id="info">Web-Based 3D Gas Leak | OHS Simulation</div>
+  </div>
+
+  <!-- Result Screen -->
+  <div id="resultScreen" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.95);
+        z-index: 300;
+        display: none;
+        overflow-y: auto;
+      ">
+    <div style="
+          max-width: 800px;
+          margin: 50px auto;
+          background: #1a1a2e;
+          padding: 40px;
+          border-radius: 20px;
+          border: 3px solid #4caf50;
+        ">
+      <h1 id="resultTitle" style="text-align: center; font-size: 32px; margin-bottom: 20px">
+        Result
+      </h1>
+
+      <p id="resultText" style="
+            font-size: 18px;
+            text-align: center;
+            margin: 20px 0;
+            line-height: 1.6;
+            color: #ddd;
+          "></p>
+
+      <div style="display: flex; justify-content: space-around; margin: 30px 0">
+        <div style="
+              background: rgba(255, 255, 255, 0.1);
+              padding: 20px;
+              border-radius: 10px;
+              text-align: center;
+            ">
+          <h3 style="color: #ffaa00">Score</h3>
+          <p id="scoreText" style="font-size: 24px; font-weight: bold"></p>
+        </div>
+
+        <div style="
+              background: rgba(255, 255, 255, 0.1);
+              padding: 20px;
+              border-radius: 10px;
+              text-align: center;
+            ">
+          <h3 style="color: #4af">Time</h3>
+          <p id="timeText" style="font-size: 24px; font-weight: bold"></p>
+        </div>
+      </div>
+
+      <div id="decisionLog" style="
+            background: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            color: #ddd;
+          "></div>
+
+      <div style="text-align: center; margin-top: 30px">
+        <button onclick="location.reload()" style="
+              background: linear-gradient(145deg, #4caf50, #45a049);
+              color: white;
+              border: none;
+              border-radius: 10px;
+              padding: 15px 40px;
+              font-size: 18px;
+              font-weight: bold;
+              cursor: pointer;
+              transition: transform 0.2s;
+            " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+          🔄 Try Again
+        </button>
+      </div>
+
+      <div style="
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(76, 175, 80, 0.1);
+            border-left: 4px solid #4caf50;
+            border-radius: 5px;
+            color: #ddd;
+          ">
+        <h4 style="color: #4caf50">📚 Lessons Learned:</h4>
+        <ul style="line-height: 1.8">
+          <li>Identify the source of the leak immediately.</li>
+          <li>Proper ventilation prevents accumulation. Open windows and fans.</li>
+          <li>If the gas level is too high, evacuate the area immediately.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+      {
+        "imports": {
+          "three": "../build/three.module.js",
+          "three/addons/": "./jsm/"
+        }
+      }
+    </script>
+
+  <script type="module" src="/main.js"></script>
+
+  <script>
+    // Global function - for alarm button access
+    window.activateAlarm = function () {
+      if (window.gasSimulation && window.gasSimulation.activateAlarm) {
+        window.gasSimulation.activateAlarm();
+      }
+    };
+
+    // Scenario window toggle feature
+    document.addEventListener("DOMContentLoaded", function () {
+      const instructionsDiv = document.getElementById("instructions");
+      const toggleButton = document.getElementById("instructionsToggle");
+      const toggleIcon = document.getElementById("toggleIcon");
+
+      if (toggleButton && instructionsDiv) {
+        toggleButton.addEventListener("click", function () {
+          instructionsDiv.classList.toggle("collapsed");
+        });
+      }
+    });
+
+    // Validation and Start
+    window.validateAndStart = function () {
+      const name = document.getElementById("userName").value.trim();
+      const surname = document.getElementById("userSurname").value.trim();
+
+      if (!name || !surname) {
+        alert("Please fill in the Name and Surname fields!");
+        return;
+      }
+
+      window.userData = {
+        name: name,
+        surname: surname,
+        startTime: new Date().toLocaleString()
+      };
+
+      const controlsIntro = document.getElementById("controls-intro");
+      if (controlsIntro) controlsIntro.style.display = "none";
+
+      if (window.gasSimulation && window.gasSimulation.runRoomTour) {
+        window.gasSimulation.runRoomTour();
+      } else {
+        const startBtn = document.getElementById("startScenarioBtn");
+        if (startBtn) startBtn.style.display = "block";
+      }
+    };
+  </script>
+</body>
+
+</html>

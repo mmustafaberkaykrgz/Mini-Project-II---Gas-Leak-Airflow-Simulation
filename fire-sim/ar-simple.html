@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Yangın Eğitimi - Basit Mod</title>
+
+    <!-- A-Frame AR.js -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 9999;
+        }
+
+        #loading-screen h1 {
+            font-size: 24px;
+            margin-bottom: 30px;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        .start-btn {
+            background: linear-gradient(145deg, #ff6b6b, #ee5a6f);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 20px 50px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.4);
+            margin-top: 20px;
+        }
+
+        .instructions-box {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 2px solid #ff6b6b;
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 400px;
+            margin: 20px;
+            text-align: left;
+        }
+
+        .instructions-box h3 {
+            color: #ffaa00;
+            margin-bottom: 10px;
+        }
+
+        .instructions-box p {
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 8px 0;
+        }
+
+        /* AR UI Overlay */
+        .ar-ui {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+        }
+
+        .ar-ui.active {
+            display: block;
+        }
+
+        .top-bar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .info-box {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 2px solid #ff6b6b;
+            font-size: 14px;
+            color: white;
+        }
+
+        .timer-box {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 2px solid #00ff00;
+            font-size: 16px;
+            font-weight: bold;
+            color: #00ff00;
+        }
+
+        .bottom-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            pointer-events: auto;
+        }
+
+        .control-btn {
+            background: linear-gradient(145deg, #4CAF50, #45a049);
+            color: white;
+            border: 3px solid white;
+            border-radius: 12px;
+            padding: 15px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+
+        .control-btn.alarm {
+            background: linear-gradient(145deg, #ff0000, #cc0000);
+        }
+
+        .control-btn.abc {
+            background: linear-gradient(145deg, #ff4444, #cc0000);
+        }
+
+        .control-btn.co2 {
+            background: linear-gradient(145deg, #333, #111);
+        }
+
+        .control-btn.water {
+            background: linear-gradient(145deg, #2196F3, #1976D2);
+        }
+
+        .status-message {
+            position: absolute;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px 30px;
+            border-radius: 12px;
+            border: 2px solid #ffaa00;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            max-width: 90%;
+        }
+
+        .popup-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 30px 40px;
+            border-radius: 15px;
+            border: 3px solid #ffaa00;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            max-width: 80%;
+            z-index: 200;
+            display: none;
+            color: white;
+        }
+
+        /* Tapılacak alan göstergesi */
+        .tap-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px 30px;
+            border-radius: 15px;
+            border: 2px dashed #ffaa00;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.8;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Yükleme/Başlangıç Ekranı -->
+    <div id="loading-screen">
+        <h1>🔥 3D Yangın Söndürme Eğitimi</h1>
+
+        <div class="instructions-box">
+            <h3>📱 Nasıl Kullanılır?</h3>
+            <p><strong>1.</strong> Kamera iznini verin</p>
+            <p><strong>2.</strong> Telefonunuzu zemine/masaya tutun</p>
+            <p><strong>3.</strong> Ekrana dokunarak yangını yerleştirin</p>
+            <p><strong>4.</strong> Alarm basın ve doğru söndürücüyü seçin</p>
+            <p><strong>5.</strong> 20 saniye içinde müdahale edin!</p>
+
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.3);">
+                <p style="color: #ffaa00;"><strong>Yang</strong> Söndürücüler:</p>
+                <p style="font-size: 13px;">✓ <strong style="color: #ff0000;">ABC Toz</strong> - Doğru</p>
+                <p style="font-size: 13px;">✓ <strong style="color: #888;">CO2</strong> - Doğru</p>
+                <p style="font-size: 13px;">✗ <strong style="color: #4af;">SU</strong> - Yanlış (Tehlikeli!)</p>
+            </div>
+        </div>
+
+        <button class="start-btn" onclick="startAR()">📷 Kamerayı Aç</button>
+    </div>
+
+    <!-- AR Sahnesi -->
+    <a-scene id="ar-scene" embedded
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+        vr-mode-ui="enabled: false" renderer="logarithmicDepthBuffer: true; precision: medium;" style="display: none;">
+
+        <!-- Kamera -->
+        <a-entity camera look-controls-enabled="false"></a-entity>
+
+        <!-- Yangın (kırmızı-turuncu parlak küre) -->
+        <a-sphere id="fire" position="0 0.2 -2" radius="0.3" color="#ff4400"
+            material="emissive: #ff6600; emissiveIntensity: 1.5; metalness: 0; roughness: 0.2;"
+            animation="property: material.emissive; from: #ff4400; to: #ffaa00; dir: alternate; dur: 500; loop: true"
+            animation__scale="property: scale; from: 0.8 0.8 0.8; to: 1.2 1.2 1.2; dir: alternate; dur: 800; loop: true">
+        </a-sphere>
+
+        <!-- Masa -->
+        <a-box id="desk" position="0 0.4 -2" width="1.5" height="0.05" depth="0.8" color="#8b7355"
+            material="roughness: 0.8">
+        </a-box>
+
+        <!-- ABC Söndürücü (Kırmızı) -->
+        <a-cylinder id="abc-extinguisher" position="-1 0.25 -1.5" radius="0.08" height="0.5" color="#ff0000"
+            material="metalness: 0.6; roughness: 0.4">
+        </a-cylinder>
+
+        <!-- CO2 Söndürücü (Siyah) -->
+        <a-cylinder id="co2-extinguisher" position="0 0.25 -1.5" radius="0.08" height="0.5" color="#111111"
+            material="metalness: 0.7; roughness: 0.3">
+        </a-cylinder>
+
+        <!-- Su Dolabı -->
+        <a-box id="water-cabinet" position="1 0.5 -2" width="0.4" height="0.6" depth="0.2" color="#cc0000"
+            material="roughness: 0.5">
+        </a-box>
+
+        <!-- Zemin göstergesi -->
+        <a-circle id="ground-indicator" position="0 0 -2" radius="1.5" rotation="-90 0 0" color="#333" opacity="0.3">
+        </a-circle>
+
+        <!-- Işıklar -->
+        <a-light type="ambient" color="#fff" intensity="0.5"></a-light>
+        <a-light type="point" position="0 2 -2" intensity="1" color="#fff"></a-light>
+        <a-light type="point" position="0 0.2 -2" intensity="2" color="#ff4400"></a-light>
+    </a-scene>
+
+    <!-- AR UI Katmanı -->
+    <div id="ar-ui" class="ar-ui">
+        <!-- Üst Çubuk -->
+        <div class="top-bar">
+            <div class="info-box">
+                <span id="instruction-text">Ekrana dokunarak yangını yerleştirin</span>
+            </div>
+            <div class="timer-box" id="timer" style="display: none;">
+                ⏱️ 0.0s
+            </div>
+        </div>
+
+        <!-- Dokunma göstergesi -->
+        <div class="tap-indicator" id="tap-indicator">
+            👆 Ekrana dokunun
+        </div>
+
+        <!-- Durum Mesajı -->
+        <div class="status-message" id="status-message">
+            Yangın yerleştiriliyor...
+        </div>
+
+        <!-- Kontrol Butonları -->
+        <div class="bottom-controls">
+            <button class="control-btn alarm" id="alarm-btn" onclick="activateAlarm()" style="display:none;">
+                🚨 ALARM BAS
+            </button>
+            <button class="control-btn abc" onclick="selectExtinguisher('ABC')" style="display:none;" id="abc-btn">
+                ABC Toz
+            </button>
+            <button class="control-btn co2" onclick="selectExtinguisher('CO2')" style="display:none;" id="co2-btn">
+                CO2
+            </button>
+            <button class="control-btn water" onclick="selectExtinguisher('WATER')" style="display:none;"
+                id="water-btn">
+                SU Dolabı
+            </button>
+        </div>
+
+        <!-- Popup Mesaj -->
+        <div class="popup-message" id="popup-message"></div>
+    </div>
+
+    <script>
+        // Senaryo değişkenleri
+        let sceneStarted = false;
+        let fireStarted = false;
+        let alarmActivated = false;
+        let selectedExtinguisher = null;
+        let startTime = 0;
+        let fireStage = 'none';
+        let timerInterval = null;
+        let userScore = 0;
+        let decisionLog = [];
+
+        // AR'yi başlat
+        function startAR() {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('ar-scene').style.display = 'block';
+            document.getElementById('ar-ui').classList.add('active');
+
+            // İlk dokunma ile senaryoyu başlat
+            document.body.addEventListener('click', onFirstTap, { once: true });
+        }
+
+        // İlk dokunma - Yangını yerleştir ve senaryoyu başlat
+        function onFirstTap() {
+            if (sceneStarted) return;
+            sceneStarted = true;
+
+            document.getElementById('tap-indicator').style.display = 'none';
+
+            showPopup('🚪 Ofise giriyorsunuz...');
+
+            setTimeout(() => {
+                startFireScenario();
+            }, 2000);
+        }
+
+        // Yangın senaryosunu başlat
+        function startFireScenario() {
+            showPopup('⚡ YANGIN BAŞLADI! Elektrik kesildi!');
+
+            fireStarted = true;
+            fireStage = 'beginning';
+            startTime = Date.now();
+
+            document.getElementById('timer').style.display = 'block';
+            document.getElementById('alarm-btn').style.display = 'block';
+            document.getElementById('status-message').textContent = '🔥 YANGIN VAR! Alarm basın!';
+            document.getElementById('instruction-text').textContent = 'HEMEN alarm basın!';
+
+            startTimer();
+
+            decisionLog.push({
+                time: 0,
+                action: 'fire_started',
+                description: 'Elektrik yangını başladı!'
+            });
+        }
+
+        // Zamanlayıcı
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                document.getElementById('timer').textContent = `⏱️ ${elapsed}s`;
+
+                // Yangın aşamaları
+                if (elapsed > 20 && fireStage === 'beginning') {
+                    fireStage = 'developed';
+                    showPopup('🔥 DİKKAT! Yangın büyüdü!');
+                }
+
+                if (elapsed > 40 && fireStage !== 'extinguished') {
+                    endScenario('failed_uncontrolled_fire');
+                }
+            }, 100);
+        }
+
+        // Alarm aktivasyonu
+        function activateAlarm() {
+            if (!fireStarted || alarmActivated) return;
+
+            const responseTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            alarmActivated = true;
+
+            if (responseTime < 5) {
+                userScore += 30;
+                showPopup('⭐ Mükemmel! +30 puan');
+            } else {
+                userScore += 10;
+                showPopup('⚠️ Geç kaldınız! +10 puan');
+            }
+
+            document.getElementById('alarm-btn').textContent = 'ALARM AKTİF! 🚨';
+            document.getElementById('alarm-btn').disabled = true;
+
+            // Söndürücü butonlarını göster
+            document.getElementById('abc-btn').style.display = 'block';
+            document.getElementById('co2-btn').style.display = 'block';
+            document.getElementById('water-btn').style.display = 'block';
+
+            document.getElementById('status-message').textContent = '🧯 Yangın söndürücü seçin!';
+            document.getElementById('instruction-text').textContent = 'Doğru söndürücüyü seçin!';
+
+            decisionLog.push({
+                time: responseTime,
+                action: 'alarm_activated',
+                description: `Alarm ${responseTime}s'de basıldı`
+            });
+        }
+
+        // Söndürücü seçimi
+        function selectExtinguisher(type) {
+            if (!alarmActivated || selectedExtinguisher) return;
+
+            selectedExtinguisher = type;
+
+            if (type === 'ABC') {
+                userScore += 40;
+                showPopup('✅ Doğru! ABC Toz elektrik için uygun! +40 puan');
+                setTimeout(() => extinguishFire(), 2000);
+            } else if (type === 'CO2') {
+                userScore += 35;
+                showPopup('✅ Doğru! CO2 uygun! +35 puan');
+                setTimeout(() => extinguishFire(), 2000);
+            } else if (type === 'WATER') {
+                userScore -= 50;
+                showPopup('❌ YANLIŞ! ELEKTRİK ÇARPMA RİSKİ! -50 puan');
+                setTimeout(() => endScenario('failed_wrong_extinguisher'), 3000);
+            }
+
+            decisionLog.push({
+                time: ((Date.now() - startTime) / 1000).toFixed(1),
+                action: 'extinguisher_selected',
+                description: `${type} seçildi`
+            });
+        }
+
+        // Yangını söndür
+        function extinguishFire() {
+            if (fireStage === 'developed') {
+                showPopup('⚠️ Çok geç! Yangın büyüdü!');
+                setTimeout(() => endScenario('failed_late_intervention'), 2000);
+                return;
+            }
+
+            showPopup('🧯 Yangın söndürülüyor...');
+
+            setTimeout(() => {
+                fireStage = 'extinguished';
+                userScore += 50;
+                showPopup('✅ Yangın söndürüldü!');
+                setTimeout(() => endScenario('success'), 2000);
+            }, 3000);
+        }
+
+        // Senaryo sonu
+        function endScenario(result) {
+            clearInterval(timerInterval);
+
+            const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            let message = '';
+
+            switch (result) {
+                case 'success':
+                    message = `🎉 BAŞARILI!\n\nYangın kontrol altına alındı!\n\nPuan: ${userScore}/200\nSüre: ${totalTime}s`;
+                    break;
+                case 'failed_wrong_extinguisher':
+                    message = `❌ BAŞARISIZ\n\nYanlış ekipman!\n\nPuan: ${userScore}/200\nSüre: ${totalTime}s`;
+                    break;
+                case 'failed_late_intervention':
+                    message = `❌ BAŞARISIZ\n\nGeç müdahale!\n\nPuan: ${userScore}/200\nSüre: ${totalTime}s`;
+                    break;
+                case 'failed_uncontrolled_fire':
+                    message = `❌ BAŞARISIZ\n\nYangın kontrolden çıktı!\n\nPuan: ${userScore}/200\nSüre: ${totalTime}s`;
+                    break;
+            }
+
+            showPopup(message + '\n\n📋 Karar Geçmişi:\n' + decisionLog.map(d => `[${d.time}s] ${d.description}`).join('\n'), true);
+        }
+
+        // Popup göster
+        function showPopup(message, permanent = false) {
+            const popup = document.getElementById('popup-message');
+            popup.textContent = message;
+            popup.style.display = 'block';
+            popup.style.whiteSpace = 'pre-line';
+
+            if (!permanent) {
+                setTimeout(() => {
+                    popup.style.display = 'none';
+                }, 4000);
+            }
+        }
+    </script>
+</body>
+
+</html>
