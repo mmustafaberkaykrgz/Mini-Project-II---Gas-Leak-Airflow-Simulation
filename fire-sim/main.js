@@ -140,25 +140,31 @@ function toggleWindow() {
 // Hava akışı (rüzgar) mantığını güncelleyen metod
 function updateAirflow() {
   // Basit fizik:
-  // Fan kapıya doğru üflesin (z > 0 yönüne).
+  // Fan odaya hava üflüyor (itme gücü).
   // Eğer fan açıksa ve (kapı veya pencere açıksa) gaz temizlenebilir.
   let windX = 0;
   let windY = 0;
   let windZ = 0;
 
   if (window.isFanOn) {
-    // Fan odayı havalandırıyor (arka duvardan öne doğru rüzgar verir)
-    windZ = 1.0;
-  }
-
-  // Havalandırma koşulu
-  if (window.isFanOn && (window.isDoorOpen || window.isWindowOpen)) {
-    // Increase wind power to push gas out rapidly
-    windZ = 2.5;
-    console.log("Airflow Created!");
-  } else if (window.isFanOn && !window.isDoorOpen && !window.isWindowOpen) {
-    // Fan açık ama gidecek yer yok, sadece içeride dolanır (hafif itme)
-    windZ = 0.3;
+    if (window.isDoorOpen && !window.isWindowOpen) {
+      // Sadece kapı açık: Gazı kapıya (ileri +Z) iter
+      windZ = 2.5;
+      windX = 0;
+    } else if (!window.isDoorOpen && window.isWindowOpen) {
+      // Sadece pencere açık: Gazı pencereye (sola -X) iter
+      windZ = 0;
+      windX = -2.5;
+    } else if (window.isDoorOpen && window.isWindowOpen) {
+      // Her ikisi de açık: Gazı çapraz (diagonal) iter
+      windZ = 1.8;
+      windX = -1.8;
+    } else {
+      // Her ikisi de kapalı: Fan açık ama çıkış yok, hafif sirkülasyon (türbülans)
+      windZ = 0.3;
+      windX = -0.1;
+    }
+    console.log(`Airflow Updated: windX=${windX}, windZ=${windZ}`);
   }
 
   // Particle engine wind_velocity set
