@@ -148,7 +148,12 @@ function getParticleSystem(params) {
         maxLife: life,
         rotation: Math.random() * 2.0 * Math.PI,
         rotationRate: Math.random() * 0.01 - 0.005,
-        velocity: new THREE.Vector3(maxVelocity.x, maxVelocity.y, maxVelocity.z),
+        // Add horizontal randomness to initial velocity for natural expansion
+        velocity: new THREE.Vector3(
+          maxVelocity.x + (Math.random() - 0.5) * 0.5, 
+          maxVelocity.y + (Math.random() * 0.2), 
+          maxVelocity.z + (Math.random() - 0.5) * 0.5
+        ),
       });
     }
   }
@@ -203,6 +208,14 @@ function getParticleSystem(params) {
 
       p.position.add(p.velocity.clone().multiplyScalar(timeElapsed));
       p.position.add(windVelocity.clone().multiplyScalar(timeElapsed)); // Pushed by wind
+
+      // Add "Brownian Motion" (Random Drift) to simulate gas diffusion/filling
+      const drift = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.4,
+        (Math.random() - 0.5) * 0.1,
+        (Math.random() - 0.5) * 0.4
+      );
+      p.position.add(drift.multiplyScalar(timeElapsed));
 
       const drag = p.velocity.clone();
       drag.multiplyScalar(timeElapsed * 0.1);

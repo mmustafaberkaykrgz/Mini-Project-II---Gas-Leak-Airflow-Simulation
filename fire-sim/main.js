@@ -538,6 +538,7 @@ addGUI();
 initApp();
 
 async function initApp() {
+  console.log("🚀 GAS_SIMULATION_V3_ACTIVE"); // Verification Log
   await init();
   createProceduralHands();
   animate();
@@ -585,6 +586,11 @@ async function init() {
 
   scene = new THREE.Scene();
 
+  // -------------------- Volumetric Room Filling (Fog) --------------------
+  // Initialize fog to simulate gas filling the room atmosphere
+  // We use FogExp2 for a more natural density-based volume filling
+  scene.fog = new THREE.FogExp2(0x112211, 0.0); // Start with 0 density (clear air)
+
   // -------------------- Particles --------------------
 
   // Fire effect removed
@@ -594,13 +600,13 @@ async function init() {
     parent: scene,
     rate: gasRate,
     texture: "./assets/img/smoke.png", // We will use smoke texture and color it green
-    radius: 0.5, // Spreads over a wider area
-    maxLife: 6.0, // Stays suspended in air longer
-    maxSize: 6.0, // Clouds are larger
+    radius: 0.8, // Increased initial spread radius
+    maxLife: 10.0, // Stays in the air much longer to fill the volume
+    maxSize: 8.0, // Large clouds for better volume filling
     maxVelocity: gasVelocity,
     colorA: new THREE.Color(0x33ff55), // Light green / toxic gas color
     colorB: new THREE.Color(0xaaff00), // Yellowish green
-    alphaMax: 0.7,
+    alphaMax: 0.6, // Slightly more transparent for volume accumulation
   });
 
   // -------------------- Create Room --------------------
@@ -1227,6 +1233,9 @@ async function createRoom() {
   // Leak source (Assume tube/connection point under the heater)
   window.leakSource = heater;
 
+  // Fixed Wall Sensor
+  createWallSensor();
+
   scene.add(room);
 }
 
@@ -1323,6 +1332,60 @@ function createProceduralHands() {
       -0.44
     );
     handGroup.add(thumb);
+
+    // Add Handheld Gas Detector to the right hand (Industrial Design)
+    if (isRight) {
+      const detectorGroup = new THREE.Group();
+      
+      // Industrial Body (Main Shell)
+      const bodyGeo = new THREE.BoxGeometry(0.05, 0.09, 0.025);
+      const bodyMat = new THREE.MeshStandardMaterial({ 
+        color: 0xff8c00, // Safety Orange
+        roughness: 0.5,
+        metalness: 0.2
+      });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      detectorGroup.add(body);
+
+      // Sensor Probe / Sniffer (Top cylinder)
+      const probeGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.03, 8);
+      const probeMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.1 });
+      const probe = new THREE.Mesh(probeGeo, probeMat);
+      probe.position.y = 0.06; // Above body
+      detectorGroup.add(probe);
+
+      // Recessed Screen Area
+      const screenBackGeo = new THREE.BoxGeometry(0.035, 0.045, 0.005);
+      const screenBackMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+      const screenBack = new THREE.Mesh(screenBackGeo, screenBackMat);
+      screenBack.position.set(0, 0.01, 0.011);
+      detectorGroup.add(screenBack);
+
+      // Status Light (Glowing Display)
+      const lightGeo = new THREE.PlaneGeometry(0.03, 0.035);
+      const lightMat = new THREE.MeshStandardMaterial({ 
+        color: 0x00ff00, 
+        emissive: 0x00ff00, 
+        emissiveIntensity: 1 
+      });
+      window.handheldDetectorLight = new THREE.Mesh(lightGeo, lightMat);
+      window.handheldDetectorLight.position.set(0, 0.01, 0.014); // Slightly in front of screen back
+      detectorGroup.add(window.handheldDetectorLight);
+
+      // Decorative Control Buttons
+      const btnGeo = new THREE.CircleGeometry(0.005, 8);
+      const btnMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+      for(let i=0; i<2; i++) {
+        const btn = new THREE.Mesh(btnGeo, btnMat);
+        btn.position.set(-0.01 + (i*0.02), -0.025, 0.013);
+        detectorGroup.add(btn);
+      }
+
+      // Position the group in the hand
+      detectorGroup.position.set(0.25 * side, -0.22, -0.42);
+      detectorGroup.rotation.x = -0.2;
+      handGroup.add(detectorGroup);
+    }
 
     return handGroup;
   };
@@ -1502,6 +1565,34 @@ function createFallbackMonitor() {
   console.log("⚠ Fallback monitör/klavye/mouse kullanıldı");
 
   return { monitor, screen, keyboard, mouse: computerMouse };
+}
+
+// Fixed Wall Sensor Object (Hazard Monitoring Requirement)
+function createWallSensor() {
+  const sensorGroup = new THREE.Group();
+  
+  // Sensor Body
+  const bodyGeo = new THREE.BoxGeometry(0.2, 0.3, 0.1);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  sensorGroup.add(body);
+
+  // Sensor Display/LED
+  const displayGeo = new THREE.BoxGeometry(0.14, 0.1, 0.02);
+  const displayMat = new THREE.MeshStandardMaterial({ 
+    color: 0x00ff00, 
+    emissive: 0x00ff00, 
+    emissiveIntensity: 0.5 
+  });
+  window.wallSensorDisplay = new THREE.Mesh(displayGeo, displayMat);
+  window.wallSensorDisplay.position.set(0, 0.05, 0.05);
+  sensorGroup.add(window.wallSensorDisplay);
+
+  // Position on the front wall near the door or leak area
+  sensorGroup.position.set(-2.4, 1.8, -1.0); 
+  sensorGroup.rotation.y = Math.PI / 2;
+  
+  if (room) room.add(sensorGroup);
 }
 
 function createFallbackChair() {
@@ -2051,17 +2142,41 @@ function animate() {
     // 7. SCREEN TINT (Visual Danger Indicator)
     const dangerOverlay = document.getElementById("dangerOverlay");
     if (dangerOverlay) {
-      if (gasIntensity >= 0.8) {
-        dangerOverlay.style.boxShadow = `inset 0 0 150px rgba(255,0,0,${(gasIntensity - 0.6)})`;
-      } else if (gasIntensity >= 0.5) {
-        dangerOverlay.style.boxShadow = `inset 0 0 100px rgba(255,100,0,${(gasIntensity - 0.3) / 2})`;
+      if (gasIntensity >= 0.1) { // Lowered threshold for immediate testing
+        // Danger State: Progressive red vignette + pulsing fill
+        const pulse = 0.5 + Math.sin(Date.now() * 0.005) * 0.2;
+        const alpha = Math.min(gasIntensity * 0.4, 0.6);
+        dangerOverlay.style.boxShadow = `inset 0 0 200px rgba(255,0,0,${pulse * alpha})`;
+        dangerOverlay.style.backgroundColor = `rgba(255, 0, 0, ${alpha * 0.2})`;
       } else {
+        // Safe
         dangerOverlay.style.boxShadow = "inset 0 0 0px rgba(255,0,0,0)";
+        dangerOverlay.style.backgroundColor = "rgba(255,0,0,0)";
       }
     }
 
+    // UPDATE PHYSICAL WALL SENSOR (Hazard Monitoring)
+    if (window.wallSensorDisplay && window.wallSensorDisplay.material) {
+      const sensorColor = new THREE.Color();
+      if (gasPercent < 40) sensorColor.set(0x00ff00); // Green
+      else if (gasPercent < 80) sensorColor.set(0xffaa00); // Orange
+      else sensorColor.set(0xff0000); // Red
+      
+      window.wallSensorDisplay.material.color.copy(sensorColor);
+      window.wallSensorDisplay.material.emissive.copy(sensorColor);
+      window.wallSensorDisplay.material.emissiveIntensity = 0.5 + (gasIntensity * 0.5);
+    }
+
     // Visual gas rate (Ensures some visual smoke is always visible if gas is active)
-    gasRate = gasActive ? (gasRateValue * gasIntensity + (gasIntensity > 0.01 ? 5 : 0)) : 0;
+    // Dynamic rate based on intensity, capped at high density
+    gasRate = gasActive ? (gasRateValue * gasIntensity + (gasIntensity > 0.05 ? 10 : 2)) : 0;
+
+    // 7.5 VOLUMETRIC FOG UPDATE
+    // As gasIntensity increases, the overall room atmosphere becomes hazy
+    if (scene.fog) {
+      // Density increases up to 0.15 for a thick toxic haze at 100% intensity
+      scene.fog.density = gasIntensity * 0.15;
+    }
 
     // 8. PROXIMITY DETECTION (Distance to Leak Source)
     const gasPosition = new THREE.Vector3(0.7, 0.25, -1.5);
@@ -2089,6 +2204,17 @@ function animate() {
         dIndicator.style.boxShadow = "0 0 10px #4caf50";
         dText.textContent = "Safe Distance";
         dText.style.color = "#4caf50";
+      }
+
+      // UPDATE HANDHELD DETECTOR LIGHT (Detection Mechanics)
+      if (window.handheldDetectorLight) {
+        const detectorColor = new THREE.Color();
+        if (distanceToGas < 1.5) detectorColor.set(0xff0000);
+        else if (distanceToGas < 3.0) detectorColor.set(0xffaa00);
+        else detectorColor.set(0x00ff00);
+
+        window.handheldDetectorLight.material.color.copy(detectorColor);
+        window.handheldDetectorLight.material.emissive.copy(detectorColor);
       }
     }
   }
