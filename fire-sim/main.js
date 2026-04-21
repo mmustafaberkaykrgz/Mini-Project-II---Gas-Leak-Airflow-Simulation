@@ -101,7 +101,7 @@ function handleInteraction(object) {
 
 function toggleFan() {
   window.isFanOn = !window.isFanOn;
-  
+
   if (window.isFanOn) {
     showMessage("💨 Fan Started. Airflow enabled.", 1500);
   } else {
@@ -148,13 +148,13 @@ function updateAirflow() {
 
   if (window.isFanOn) {
     // Fan odayı havalandırıyor (arka duvardan öne doğru rüzgar verir)
-    windZ = 1.0; 
+    windZ = 1.0;
   }
 
   // Havalandırma koşulu
   if (window.isFanOn && (window.isDoorOpen || window.isWindowOpen)) {
     // Increase wind power to push gas out rapidly
-    windZ = 2.5; 
+    windZ = 2.5;
     console.log("Airflow Created!");
   } else if (window.isFanOn && !window.isDoorOpen && !window.isWindowOpen) {
     // Fan açık ama gidecek yer yok, sadece içeride dolanır (hafif itme)
@@ -179,25 +179,25 @@ function toggleDoor() {
     window.doorGroup.rotation.y = 0;
     showMessage("🚪 Door Closed", 1000);
   }
-  
+
   decisionLog.push({
     time: Date.now() - startTime,
     action: "toggle_door",
     description: window.isDoorOpen ? "Door opened." : "Door closed.",
   });
-  
+
   updateAirflow();
 }
 
-window.activateAlarm = function() {
+window.activateAlarm = function () {
   if (scenarioEnded) return;
 
   showMessage("🚨 EMERGENCY ALARM ACTIVATED! Reporting to security.", 3000);
-  
+
   if (alarmAudio) {
     alarmAudio.play().catch(e => console.warn("Audio play failed:", e));
   }
-  
+
   decisionLog.push({
     time: Date.now() - startTime,
     action: "alarm_activated",
@@ -367,9 +367,9 @@ const REALISTIC_MODELS = {
   // Acil Durum Alarm Butonu - GİRİŞE YAKIN (sol duvar, ön taraf)
   alarmButton: {
     file: "fire_alarm.glb", // Dosya ismi aynı kalabilir ancak işlevi "Acil Durum" olarak değişti
-    position: { x: -2.4, y: 1.4, z: 1.8 }, 
+    position: { x: -2.4, y: 1.4, z: 1.8 },
     scale: { x: 0.9, y: 0.9, z: 0.9 },
-    rotation: { x: 0, y: 0, z: 0 }, 
+    rotation: { x: 0, y: 0, z: 0 },
   },
   // Elektrik Panosu - Arka köşe (sağ duvar, arka taraf)
   electricalPanel: {
@@ -481,7 +481,7 @@ async function loadAllRealisticModels() {
 let gasEffect;
 
 let gasActive = false;
-let gasIntensity = 1.0; 
+let gasIntensity = 0.0;
 let peakGasIntensity = 0.0; // Puanlama için en yüksek seviyeyi tutar
 let gasStage = "none"; // 'none', 'leaking', 'cleared'
 
@@ -495,7 +495,7 @@ let decisionLog = [];
 let scenarioEnded = false;
 
 // Parçacık yoğunluğu
-const gasRateValue = 40; 
+const gasRateValue = 40;
 let gasRate = 0;
 
 const cubeGeometry = new THREE.BoxGeometry();
@@ -503,7 +503,7 @@ const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
 
 // Gas Particles - Sızıntı kaynağı (eski heater pozisyonu)
 const gasSpawn = new THREE.Mesh(cubeGeometry, cubeMaterial);
-gasSpawn.position.set(0.7, 0.25, -1.5); 
+gasSpawn.position.set(0.7, 0.25, -1.5);
 gasSpawn.scale.set(0.1, 0.1, 0.1);
 
 const gasVelocity = new THREE.Vector3(0, 0.2, 0); // Yavaşça yukarı yayılır
@@ -513,11 +513,11 @@ let crosshair;
 // -------------------- GUI --------------------
 
 const guiObject = {
-  gasBoolean: true, 
+  gasBoolean: true,
   pauseBoolean: false,
   value1: 1,
   value2: 1,
-  value3: 1.55, 
+  value3: 1.55,
   value4: 0.05,
   color: { r: 0.01, g: 0.01, b: 0.01 },
 };
@@ -548,7 +548,7 @@ async function init() {
 
   // Ses sistemini başlat
   initAudio();
-  
+
   // Tarayıcı ses kilidini açmak için ilk etkileşimi dinle
   const unlockAudio = () => {
     if (alarmAudio) {
@@ -563,7 +563,7 @@ async function init() {
       }).catch(e => {
         console.log("Audio unlock pending... Waiting for interaction.");
       });
-      
+
       // Kilidi sadece bir kez açmaya çalış
       document.removeEventListener("mousedown", unlockAudio);
       document.removeEventListener("keydown", unlockAudio);
@@ -1419,7 +1419,7 @@ function createFallbackTrashCan() {
   room.add(rim);
 
   // Gaz sızıntı kaynağı (Isıtıcı altı)
-  gasSpawn.position.set(0.7, 0.25, -1.5); 
+  gasSpawn.position.set(0.7, 0.25, -1.5);
   // smokeSpawn kaldırıldı
 
   console.log("⚠ Fallback çöp kovası kullanıldı");
@@ -1567,14 +1567,14 @@ function createFallbackChair() {
 // Havalandırma Fanı Oluşturur (Airflow Logic)
 function createVentilationFan() {
   const fanGroup = new THREE.Group();
-  
+
   // Ana Kasa
   const boxGeo = new THREE.BoxGeometry(0.8, 0.8, 0.2);
-  const boxMat = new THREE.MeshStandardMaterial({ 
-      color: 0x888888, 
-      metalness: 0.6, 
-      roughness: 0.5,
-      emissive: 0x222222
+  const boxMat = new THREE.MeshStandardMaterial({
+    color: 0x888888,
+    metalness: 0.6,
+    roughness: 0.5,
+    emissive: 0x222222
   });
   const box = new THREE.Mesh(boxGeo, boxMat);
   fanGroup.add(box);
@@ -1582,11 +1582,11 @@ function createVentilationFan() {
   // Ortadaki Pervane
   window.fanBlades = new THREE.Group();
   const bladeGeo = new THREE.BoxGeometry(0.7, 0.1, 0.05);
-  const bladeMat = new THREE.MeshStandardMaterial({ 
-      color: 0xaaaaaa, 
-      metalness: 0.9, 
-      roughness: 0.1,
-      emissive: 0x222222
+  const bladeMat = new THREE.MeshStandardMaterial({
+    color: 0xaaaaaa,
+    metalness: 0.9,
+    roughness: 0.1,
+    emissive: 0x222222
   });
 
   const blade1 = new THREE.Mesh(bladeGeo, bladeMat);
@@ -1607,16 +1607,16 @@ function createVentilationFan() {
 
   // Move fan to front wall, left of the door (from inside perspective)
   // Position lowered and moved to the other side as requested
-  fanGroup.position.set(-1.5, 1.6, 2.4); 
+  fanGroup.position.set(-1.5, 1.6, 2.4);
   room.add(fanGroup);
-  
+
   console.log("✓ Ventilation fan added");
 }
 
 // Pencere Oluşturur (Airflow Logic)
 function createWindowMesh(roomSize, wallHeight, wallThickness) {
   window.windowGroup = new THREE.Group();
-  
+
   // Hitbox (Raycaster için isim ve boyut korunuyor)
   const hitbox = new THREE.Mesh(
     new THREE.BoxGeometry(0.8, 1.5, 2.0),
@@ -1628,31 +1628,31 @@ function createWindowMesh(roomSize, wallHeight, wallThickness) {
   // Sol duvarda, duvara tam yaslanmış konumda
   // Position lowered to prevent clipping and improve visibility
   window.windowGroup.position.set(-2.41, 1.3, 0.0);
-  
+
   // Realistik Pencere Modelini Yükle
   loader.load("Window Small.glb", (gltf) => {
     const model = gltf.scene;
-    
+
     // Shrink scale to fit the wall better
     model.scale.set(1.2, 1.2, 1.2);
     model.rotation.y = Math.PI / 2; // Duvara paralel çevir
-    
+
     model.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
       }
     });
-    
+
     window.windowGroup.add(model);
     console.log("✓ Realistik Pencere Modeli Yüklendi.");
   }, undefined, (err) => {
     console.warn("⚠ Pencere modeli yüklenemedi, fallback oluşturuluyor:", err);
     // Hata durumunda eski basit modeli ekle
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.2, 1.5), new THREE.MeshStandardMaterial({color:0x4488ff, transparent:true, opacity:0.8}));
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.2, 1.5), new THREE.MeshStandardMaterial({ color: 0x4488ff, transparent: true, opacity: 0.8 }));
     window.windowGroup.add(glass);
   });
-  
+
   room.add(window.windowGroup);
 }
 
@@ -1714,7 +1714,7 @@ function endScenario(result) {
   }
   const gasContainer = document.getElementById("gasLevelContainer");
   if (gasContainer) gasContainer.style.display = "none";
-  
+
   const detectorContainer = document.getElementById("detectorContainer");
   if (detectorContainer) detectorContainer.style.display = "none";
 
@@ -1750,18 +1750,18 @@ function endScenario(result) {
     // --- 100 ÜZERİNDEN MANTIKLI PUANLAMA ---
     // 1. Hız (40 Puan): 40 saniyeden önce bitirmek tam puan, sonrası her saniye -0.5 puan
     let timeScore = Math.max(0, 40 - (parseFloat(totalTime) / 2));
-    
+
     // 2. Güvenlik (40 Puan): Gaz seviyesi hiç %50'yi geçmediyse tam puan, sonrası düşer
     // En yüksek ulaşılan yoğunluk üzerinden: (1 - peak) * 40
     let safetyScore = Math.max(0, (1 - peakGasIntensity) * 40);
-    
+
     // 3. Prosedür (20 Puan): Fan ve Pencere açıldığı için
     let procedureScore = 0;
     if (window.isFanOn) procedureScore += 10;
     if (window.isWindowOpen) procedureScore += 10;
 
     userScore = Math.round(timeScore + safetyScore + procedureScore);
-    
+
     // Minimum 10 puan (başarı ödülü)
     if (userScore < 10) userScore = 10;
 
@@ -1990,33 +1990,33 @@ function animate() {
   if (gasActive && gasStage !== "cleared") {
     let gasDelta = deltaTime * 0.02; // Saniyede %2 artış
     if (window.isFanOn && (window.isDoorOpen || window.isWindowOpen)) {
-        gasDelta = -deltaTime * 0.05; // Havalandırma tam kapasite açıkken hızlı düşüş
+      gasDelta = -deltaTime * 0.05; // Havalandırma tam kapasite açıkken hızlı düşüş
     } else if ((window.isFanOn && !window.isDoorOpen && !window.isWindowOpen) || (window.isDoorOpen || window.isWindowOpen)) {
-        gasDelta = -deltaTime * 0.01; // Sadece açık fan veya kapı/pencere ile çok hafif düşüş
+      gasDelta = -deltaTime * 0.01; // Sadece açık fan veya kapı/pencere ile çok hafif düşüş
     }
-    
+
     gasIntensity += gasDelta;
     if (gasIntensity > peakGasIntensity) peakGasIntensity = gasIntensity; // Zirve noktayı kaydet
-    
-    if (gasIntensity <= 0.05 && gasStage === "leaking") { 
-      gasIntensity = 0.0; 
-      gasStage = "cleared"; 
-      showMessage("✅ Environment Cleared of Gas! Mission Accomplished.", 3000); 
+
+    if (gasIntensity <= 0.05 && gasStage === "leaking") {
+      gasIntensity = 0.0;
+      gasStage = "cleared";
+      showMessage("✅ Environment Cleared of Gas! Mission Accomplished.", 3000);
       setTimeout(() => endScenario("success"), 3500);
     }
     if (gasIntensity > 1.0) {
-       gasIntensity = 1.0;
-       if (!scenarioEnded) {
-         console.log("TOXIC DEATH TRIGGERED");
-         triggerGameOver();
-       }
+      gasIntensity = 1.0;
+      if (!scenarioEnded) {
+        console.log("TOXIC DEATH TRIGGERED");
+        triggerGameOver();
+      }
     }
-    
+
     // Debug log (Sadece her 60 karede bir)
     if (Math.floor(Date.now() / 1000) % 2 === 0 && Math.random() < 0.01) {
-       console.log("Current Gas Intensity:", gasIntensity.toFixed(3));
+      console.log("Current Gas Intensity:", gasIntensity.toFixed(3));
     }
-    
+
     // Gaz seviyesi UI güncellemesi
     const gasPercent = Math.min(Math.floor(gasIntensity * 100), 100);
     const textEl = document.getElementById("gasPercentageText");
@@ -2033,13 +2033,13 @@ function animate() {
     // Tehlike Efekti (Ekran köşeleri kırmızılaşır)
     const dangerOverlay = document.getElementById("dangerOverlay");
     if (dangerOverlay) {
-       if (gasIntensity >= 0.8) {
-          dangerOverlay.style.boxShadow = `inset 0 0 150px rgba(255,0,0,${(gasIntensity-0.6)})`;
-       } else if (gasIntensity >= 0.5) {
-          dangerOverlay.style.boxShadow = `inset 0 0 100px rgba(255,100,0,${(gasIntensity-0.3)/2})`;
-       } else {
-          dangerOverlay.style.boxShadow = "inset 0 0 0px rgba(255,0,0,0)";
-       }
+      if (gasIntensity >= 0.8) {
+        dangerOverlay.style.boxShadow = `inset 0 0 150px rgba(255,0,0,${(gasIntensity - 0.6)})`;
+      } else if (gasIntensity >= 0.5) {
+        dangerOverlay.style.boxShadow = `inset 0 0 100px rgba(255,100,0,${(gasIntensity - 0.3) / 2})`;
+      } else {
+        dangerOverlay.style.boxShadow = "inset 0 0 0px rgba(255,0,0,0)";
+      }
     }
 
     // Gaz oranı kapasitesi
@@ -2048,10 +2048,10 @@ function animate() {
     // Dedektör Mesafesi Hesaplama (Proximity Sensor)
     const gasPosition = new THREE.Vector3(0.7, 0.25, -1.5);
     const distanceToGas = camera.position.distanceTo(gasPosition);
-    
+
     const dIndicator = document.getElementById("detectorIndicator");
     const dText = document.getElementById("detectorText");
-    
+
     if (dIndicator && dText) {
       if (distanceToGas < 1.5) {
         dIndicator.style.backgroundColor = "#ff0000";
@@ -2082,7 +2082,7 @@ function animate() {
     const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
     const timerDiv = document.getElementById("timer");
     if (timerDiv) {
-      timerDiv.textContent = `⏱️ Geçen Süre: ${elapsedTime}s`;
+      timerDiv.textContent = `⏱️ elapsed time: ${elapsedTime}s`;
 
       if (elapsedTime < 40) {
         timerDiv.style.color = "#00ff00";
